@@ -9,26 +9,18 @@
 
 #define DEFAULT_PORT 2099
 
-void acceptFunc(int sockfd) {
-  struct sockaddr_in cli_addr;
-  socklen_t clilen = sizeof(cli_addr);
+void acceptHandler(int sockfd, int clisockfd, struct sockaddr_in cli_addr, socklen_t clilen) {
+  int n;
+  char buffer[256];
+  bzero((char *) buffer, sizeof(buffer));
 
-  while(1) {
-    int n;
-    char buffer[255];
-    bzero((char *) buffer, sizeof(buffer));
+  printf("server: got connection from %s port %d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+  send(clisockfd, "Hello, world!\n", 13, 0);
 
-    int newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-    if (newsockfd < 0) { perror("ERROR on accept"); exit(EXIT_FAILURE); }
-
-    printf("server: got connection from %s port %d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
-    send(newsockfd, "Hello, world!\n", 13, 0);
-
-    n = read(newsockfd, buffer, 255);
-    if (n < 0) { perror("ERROR reading from socket\n"); exit(EXIT_FAILURE); }
-    printf("Here is the message: %s\n", buffer);
-    close(newsockfd);
-  }
+  n = read(clisockfd, buffer, 255);
+  if (n < 0) { perror("ERROR reading from socket\n"); exit(EXIT_FAILURE); }
+  printf("\nMessage from %s port %d: %s", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port), buffer);
+  close(clisockfd);
 }
 
 int main(int argc, char *argv[]) {
@@ -38,7 +30,7 @@ int main(int argc, char *argv[]) {
   socklen_t clilen;
   char buffer[255];
 
-  struct sockaddr_in serv_addr;
+  struct sockaddr_in serv_addr, cli_addr;
   int n;
 
   if (argc < 2) {
@@ -62,8 +54,14 @@ int main(int argc, char *argv[]) {
   }
 
   listen(sockfd, 5);
-  std::thread t(acceptFunc, sockfd);
-  t.join();
+
+  clilen = sizeof(cli_addr);
+
+  while(1) {
+    newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+    if (newsockfd < 0) { perror("ERROR on accept"); exit(EXIT_FAILURE); }
+    std::thread(acceptHandler, sockfd, newsockfd, cli_addr, clilen).detach();
+  }
 
   close(sockfd);
   return 0;
