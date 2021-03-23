@@ -1,17 +1,17 @@
-#include "main.h"
+#include "../include/main.hpp"
 
 int main()
 {   
-	vector<packet> packets = readPacketsFromFile();
-	for (int i = 0; i < packets.size(); i++)
+	std::vector<packet> packets = readPacketsFromFile();
+	for (int i{0}; i < packets.size(); i++)
 	{
 		printPacketData(packets[i]);
 	}
 }
 
-vector<packet> readPacketsFromFile()
+std::vector<packet> readPacketsFromFile()
 {
-	vector<packet> packets;
+	std::vector<packet> packets;
 
 
 
@@ -20,7 +20,7 @@ vector<packet> readPacketsFromFile()
 
 	//sample output until libPcap configuration complete
 	packet newPacket;
-	for (int i = 0; i < 10; i++)
+	for (int i{0}; i < 10; i++)
 	{
 		newPacket.timestampVersion = i;
 		newPacket.seconds = i;

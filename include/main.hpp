@@ -1,7 +1,7 @@
+#pragma once
+
 #include <iostream>
 #include <vector>
-
-using namespace std;
 
 typedef struct packet
 {
@@ -10,5 +10,5 @@ typedef struct packet
 	int nanoseconds;
 } packet;
 
-vector<packet> readPacketsFromFile();
+std::vector<packet> readPacketsFromFile();
 void printPacketData(packet inputPacket);
