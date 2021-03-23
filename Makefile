@@ -9,6 +9,3 @@ run: clean
 
 clean:
 	rm -rf test
-
-test: build
-	./test
