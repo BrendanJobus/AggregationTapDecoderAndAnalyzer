@@ -1,7 +1,7 @@
 default: build run clean
 
 build:
-	g++ -o test ./src/main.cpp
+	g++ ./src/main.cpp -lpcap -o test
 
 run:
 	./test

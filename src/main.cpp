@@ -2,33 +2,28 @@
 
 int main()
 {   
-	std::vector<packet> packets = readPacketsFromFile();
-	for (int i{0}; i < packets.size(); i++)
-	{
-		printPacketData(packets[i]);
-	}
+	analysePacketsFromFile("./data/pCaps1.pcap");
 }
 
-std::vector<packet> readPacketsFromFile()
+void analysePacketsFromFile(const char * filePath)
 {
-	std::vector<packet> packets;
-
-
-
-
-
-
-	//sample output until libPcap configuration complete
-	packet newPacket;
-	for (int i{0}; i < 10; i++)
+	struct pcap_pkthdr *header;
+	const u_char *data;
+	
+    char errbuf[PCAP_ERRBUF_SIZE]; 
+    pcap_t* packetData = pcap_open_offline(filePath, errbuf);
+    packet newPacket; 
+	while (int returnValue = pcap_next_ex(packetData, &header, &data) == 1)
 	{
-		newPacket.timestampVersion = i;
-		newPacket.seconds = i;
-		newPacket.nanoseconds = i;
-		packets.push_back(newPacket);
-	}
+		//extract
+		newPacket.timestampVersion = 1;
+		newPacket.seconds = header->ts.tv_sec;
+		newPacket.nanoseconds = header->ts.tv_usec;
 
-	return packets;
+		//do some analysis
+		printPacketData(newPacket);
+	}
+	pcap_close(packetData);	
 }
 
 void printPacketData(packet inputPacket)

@@ -1,7 +1,7 @@
 #pragma once
 
+#include <pcap.h> 
 #include <iostream>
-#include <vector>
 
 typedef struct packet
 {
@@ -10,5 +10,5 @@ typedef struct packet
 	int nanoseconds;
 } packet;
 
-std::vector<packet> readPacketsFromFile();
+void analysePacketsFromFile(const char * filePath);
 void printPacketData(packet inputPacket);

@@ -37,7 +37,7 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 ### Compile
 * Compile the project
 	```sh
-	clang++ -Wall -std=c++11 main.cpp -o test
+	g++ main.cpp -lpcap -o test
 	```
 
 ### Run
