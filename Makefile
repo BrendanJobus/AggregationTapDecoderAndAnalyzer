@@ -1,10 +1,9 @@
-default: build
+default: build run clean
 
-build: clean
-	clang++ -Wall -o test ./src/main.cpp
+build:
+	g++ -o test ./src/main.cpp
 
-run: clean
-	clang++ -Wall -o test ./src/main.cpp
+run:
 	./test
 
 clean:
