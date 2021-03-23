@@ -15,8 +15,12 @@
     <li>
       <a href="#getting-started"><b>Getting Started</b></a>
       <ul>
-        <li><a href="#compile">Compile</a></li>
-        <li><a href="#run">Run</a></li>
+	<li><a href="#automatic">Automatic</a></li>
+        <li><a href="#manual-steps">Manual Steps</a></li>
+	<ul>
+		<li><a href="#compile">Compile</a></li>
+		<li><a href="#run">Run</a></li>
+	</ul>
       </ul>
     </li>
     <li><a href="#contributers"><b>Contributers</b></a></li>
@@ -34,13 +38,20 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 <!-- Getting Started -->
 ## Getting Started
 
-### Compile
-* Compile the project
+### Automatic
+* Run Makefile
 	```sh
-	g++ main.cpp -lpcap -o test
+	make
 	```
 
-### Run
+### Manual Steps
+#### Compile
+* Compile the project
+	```sh
+	g++ ./src/main.cpp -lpcap -o test
+	```
+
+#### Run
 * Run the project
 	```sh
 	./test
