@@ -1,10 +1,11 @@
-default: build run clean
+default: build
 
-build:
-	g++ ./src/main.cpp -lpcap -o test
+build: clean
+	g++ -Wall -o ./bin/test ./src/main.cpp -lpcap
 
-run:
-	./test
+run: clean
+	g++ -Wall -o ./bin/test ./src/main.cpp -lpcap
+	./bin/test
 
 clean:
-	rm -rf test
+	rm -rf ./bin/test
