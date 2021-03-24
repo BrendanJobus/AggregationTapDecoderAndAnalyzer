@@ -42,7 +42,7 @@ int main() {
 	const u_char *packet;
 	int packetCount = 0;
 
-	FILE *fp = fopen("result.txt", "w");
+	FILE *fp = fopen("./out/result.txt", "w");
 
 	const struct sniff_ethernet *ethernet;
 	const struct sniff_arista_types *aristaTypes;
