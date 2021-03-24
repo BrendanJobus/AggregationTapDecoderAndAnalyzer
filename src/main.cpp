@@ -65,13 +65,14 @@ int main() {
 		ethernet = (struct sniff_ethernet*)(packet);
 		std::cout << std::hex << ntohs(ethernet->ether_type) << '\n';
 		aristaTypes = (struct sniff_arista_types*)(packet + SIZE_ETHERNET);
+		std::cout << "subType: " << ntohs(aristaTypes->subType) << " Version: " << ntohs(aristaTypes->version) << '\n';
 		if (ntohs(aristaTypes->subType) == 0x1) {
 			aristaTime64 = (struct sniff_arista_times_64*)(packet + SIZE_ETHERNET + ARISTA_TYPES_LENGTH);
+			std::cout << std::dec << "seconds: " << ntohl(aristaTime64->seconds) << " nanoseconds: " << ntohl(aristaTime64->nanoseconds) << '\n';
 		} else {
 			aristaTime48 = (struct sniff_arista_times_48*)(packet + SIZE_ETHERNET + ARISTA_TYPES_LENGTH);
+			std::cout << std::dec << "seconds: " << ntohl(aristaTime48->seconds) << " nanoseconds: " << ntohl(aristaTime48->nanoseconds) << '\n';
 		}
-		std::cout << "subType: " << ntohs(aristaTypes->subType) << " Version: " << ntohs(aristaTypes->version) << '\n';
-		std::cout << std::dec << "seconds: " << ntohl(aristaTime64->seconds) << " nanoseconds: " << ntohl(aristaTime64->nanoseconds) << '\n';
 
 		printf("\n");
 		fprintf(fp, "\n");
