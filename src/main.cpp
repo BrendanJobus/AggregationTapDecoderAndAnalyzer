@@ -3,6 +3,14 @@
 #define SIZE_ETHERNET 14
 #define ETHER_ADDR_LEN 6
 
+// length in bytes of the arista types struct
+#define ARISTA_TYPES_LENGTH 4
+
+// Version is the TAI or UTC
+// TAI is 0010 and UTC is 0110
+// subType is 64 or 48 bit
+// 64 bit is 0001 and 48 bit is
+
 // This corresponds to 
 struct sniff_ethernet {
 	u_char ether_dhost[ETHER_ADDR_LEN];
@@ -10,12 +18,8 @@ struct sniff_ethernet {
 	u_short ether_type;
 };
 
-// length in bytes of the arista types struct
-constexpr int ARISTA_TYPES_LENGTH{4};
-// Version is the TAI or UTC
-// TAI is 0010 and UTC is 0110
-// subType is 64 or 48 bit
-// 64 bit is 0001 and 48 bit is 
+
+ 
 struct sniff_arista_types {
 	u_short subType;
 	u_short version;
@@ -32,14 +36,24 @@ struct sniff_arista_times_48 {
 };
 
 
+int main(int argc, char *argv[]) {   
 
-
-int main() {   
 	// This is the buffer that pcap uses to output the error into
 	char errbuff[PCAP_ERRBUF_SIZE];
 
+	// ./program filename
+	string filename;
+	if (argc != 2) {
+		cout << "usage: ./pcap_reader PCAP\n";
+		cout << "where PCAP is the filename of a packet file\n";
+		exit(0);
+	}
+
+	filename = string(argv[1]);
+	const char *c = filename.c_str();
+
 	// Opening the pcap file in memory, pcap_t will point to the start of the file
-	pcap_t *handler = pcap_open_offline("./data/pCaps1.pcap", errbuff);
+	pcap_t *handler = pcap_open_offline(c, errbuff);
 
 	// This will store the pcap header, which holds information pertinent to pcap
 	struct pcap_pkthdr *header;
@@ -56,6 +70,8 @@ int main() {
 	const struct sniff_arista_types *aristaTypes;
 	const struct sniff_arista_times_64 *aristaTime64;
 	const struct sniff_arista_times_48 *aristaTime48;
+
+	u_short *bits;
 
 	// pcap_next_ex returns a 1 so long as every thing is ok, so keep looping until its not 1
 	while(pcap_next_ex(handler, &header, &packet) >= 0) {
@@ -77,11 +93,14 @@ int main() {
 
 		// putting data into the ethernet variable
 		ethernet = (struct sniff_ethernet*)(packet);
+		bits = ethernet->ether_type;
 		std::cout << std::hex << ntohs(ethernet->ether_type) << '\n';
+		// ntohs(bits)
 
-		// putting data into the aristaTypes variable, the packet + SIZE_ETHERNET means start at the memory address of packet + the length of the ethernet
-		// header
+		// putting data into the aristaTypes variable, 
+		// the packet SIZE_ETHERNET means start at the memory address of packet + the length of the ethernet
 		aristaTypes = (struct sniff_arista_types*)(packet + SIZE_ETHERNET);
+		
 		std::cout << "subType: " << ntohs(aristaTypes->subType) << " Version: " << ntohs(aristaTypes->version) << '\n';
 
 		// if the sub type is 0x1, then the timestamp is in 64 bits, otherwise its in 48 bits
