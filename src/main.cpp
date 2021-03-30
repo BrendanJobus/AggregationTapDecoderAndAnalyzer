@@ -19,7 +19,6 @@ struct sniff_ethernet {
 };
 
 
- 
 struct sniff_arista_types {
 	u_short subType;
 	u_short version;
@@ -41,19 +40,22 @@ int main(int argc, char *argv[]) {
 	// This is the buffer that pcap uses to output the error into
 	char errbuff[PCAP_ERRBUF_SIZE];
 
-	// ./program filename
-	string filename;
+	// error checking for user has not entered a filename as argument
+	std::string filename;
 	if (argc != 2) {
-		cout << "usage: ./pcap_reader PCAP\n";
-		cout << "where PCAP is the filename of a packet file\n";
+		std::cout << "usage: ./pcap_reader PCAP\nwhere PCAP is the filename of a packet file" << '\n';
 		exit(0);
 	}
 
-	filename = string(argv[1]);
+	// takes user input of filename and convert to suitable format for pcap handler
+	filename = std::string(argv[1]);
 	const char *c = filename.c_str();
 
+	// NOTE: The makefile now takes arguments. Run in the terminal the following: 'make run args=./data/pCaps1.pcap'
+	// The makefile will take any proper filename as args=filepath
+
 	// Opening the pcap file in memory, pcap_t will point to the start of the file
-	pcap_t *handler = pcap_open_offline(c, errbuff);
+	pcap_t *handler = pcap_open_offline(c, errbuff); //previously pcap_t *handler = pcap_open_offline("./data/pCaps1.pcap", errbuff);
 
 	// This will store the pcap header, which holds information pertinent to pcap
 	struct pcap_pkthdr *header;
@@ -70,8 +72,7 @@ int main(int argc, char *argv[]) {
 	const struct sniff_arista_types *aristaTypes;
 	const struct sniff_arista_times_64 *aristaTime64;
 	const struct sniff_arista_times_48 *aristaTime48;
-
-	u_short *bits;
+	u_int bits;
 
 	// pcap_next_ex returns a 1 so long as every thing is ok, so keep looping until its not 1
 	while(pcap_next_ex(handler, &header, &packet) >= 0) {
@@ -93,26 +94,26 @@ int main(int argc, char *argv[]) {
 
 		// putting data into the ethernet variable
 		ethernet = (struct sniff_ethernet*)(packet);
-		bits = ethernet->ether_type;
-		std::cout << std::hex << ntohs(ethernet->ether_type) << '\n';
-		// ntohs(bits)
+		std::cout << std::hex << ntohs(bits = ethernet->ether_type) << '\n';
 
 		// putting data into the aristaTypes variable, 
 		// the packet SIZE_ETHERNET means start at the memory address of packet + the length of the ethernet
 		aristaTypes = (struct sniff_arista_types*)(packet + SIZE_ETHERNET);
-		
-		std::cout << "subType: " << ntohs(aristaTypes->subType) << " Version: " << ntohs(aristaTypes->version) << '\n';
+		bits = (aristaTypes->version);
+		std::cout << "Version: " << ntohs(bits = aristaTypes->version) << '\n';
+		std::cout << "subType: " << ntohs(bits = aristaTypes->subType) << '\n';
 
 		// if the sub type is 0x1, then the timestamp is in 64 bits, otherwise its in 48 bits
-		if (ntohs(aristaTypes->subType) == 0x1) {
+		if (ntohs(bits) == 0x1) {
 			// put the data at packet + SIZE_ETHERNET + ARISTA_TYPES_LENGTH into aristaTime64
 			aristaTime64 = (struct sniff_arista_times_64*)(packet + SIZE_ETHERNET + ARISTA_TYPES_LENGTH);
-			std::cout << std::dec << "seconds: " << ntohl(aristaTime64->seconds) << " nanoseconds: " << ntohl(aristaTime64->nanoseconds) << '\n';
+			std::cout << std::dec << "seconds: " << ntohl(bits = aristaTime64->seconds) << '\n';
+			std::cout << std::dec << "nanoseconds: " << ntohl(bits = aristaTime64->nanoseconds) << '\n';
 		} else {
 			aristaTime48 = (struct sniff_arista_times_48*)(packet + SIZE_ETHERNET + ARISTA_TYPES_LENGTH);
-			std::cout << std::dec << "seconds: " << ntohl(aristaTime48->seconds) << " nanoseconds: " << ntohl(aristaTime48->nanoseconds) << '\n';
+			std::cout << std::dec << "seconds: " << ntohl(bits = aristaTime48->seconds) << '\n';
+			std::cout << std::dec << "nanoseconds: " << ntohl(bits = aristaTime48->nanoseconds) << '\n';
 		}
-
 
 		// NOTE: the ntohl and ntohs is to convert from the standard network order into your machines order of bits, for efficiency of typing, 
 		// I have just run the function on the data, however, this actual creates a new variable each time implicitly, and then passes it to cout
