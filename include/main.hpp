@@ -17,14 +17,33 @@
 
 #include <pcap.h>
 
-namespace packet {
-	typedef struct packet
-	{
-		short int timestampVersion;
-		int seconds;
-		int nanoseconds;
-	} packet;
-};
+namespace headerStructure {
+	constexpr int SIZE_ETHERNET{14};
+	constexpr int ETHER_ADDR_LEN{6};
+	struct sniff_ethernet {
+		u_char ether_dhost[ETHER_ADDR_LEN];
+		u_char ether_shost[ETHER_ADDR_LEN];
+		u_short ether_type;
+	};
 
-std::vector<packet::packet> readPacketsFromFile();
-void printPacketData(packet::packet inputPacket);
+	// length in bytes of the arista types struct
+	constexpr int ARISTA_TYPES_LENGTH{4};
+	// Version is the TAI or UTC
+	// TAI is 0010 and UTC is 0110
+	// subType is 64 or 48 bit
+	// 64 bit is 0001 and 48 bit is 
+	struct sniff_arista_types {
+		u_short subType;
+		u_short version;
+	};
+
+	struct sniff_arista_times_64 {
+		u_int seconds;
+		u_int nanoseconds;
+	};
+
+	struct sniff_arista_times_48 {
+		u_short seconds;
+		u_int nanoseconds;
+	};
+};
