@@ -26,16 +26,16 @@ private:
 		std::cout << "subType: " << timestampLength << " Version: " << timeFormat << '\n';
 
 		// 0x1 corresponds to 64 bit timestamp
-		if (timestampLength == 0x1) {
+		if (timestampLength == headerStructure::sixtyFourBitCode) {
 			aristaTime64 = (headerStructure::sniff_arista_times_64*)(packet + headerStructure::SIZE_ETHERNET + headerStructure::ARISTA_TYPES_LENGTH);
 			std::cout << std::dec << "seconds: " << ntohl(aristaTime64->seconds) << " nanoseconds: " << ntohl(aristaTime64->nanoseconds) << '\n';
-			if(timeFormat == 0x10) {
+			if(timeFormat == headerStructure::taiCode) {
 				// UTC conversion
 			}
 		} else {
 			aristaTime48 = (headerStructure::sniff_arista_times_48*)(packet + headerStructure::SIZE_ETHERNET + headerStructure::ARISTA_TYPES_LENGTH);
 			std::cout << std::dec << "seconds: " << ntohl(aristaTime48->seconds) << " nanoseconds: " << ntohl(aristaTime48->nanoseconds) << '\n';
-			if(timeFormat == 0x10) {
+			if(timeFormat == headerStructure::taiCode) {
 				// UTC conversion
 			}
 		}
@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
 	// This is the buffer that pcap uses to output the error into
 	char errbuff[PCAP_ERRBUF_SIZE];
 
-	if(argc > 1) {
+	if(argc > 1) { // if arguments are specified, run those files
 		for(int i{1}; i < argc; i++){
 			std::cout << argv[i] << '\n';
 			// Opening the pcap file in memory, pcap_t will point to the start of the file
@@ -142,5 +142,6 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	r.destroy();
 	return 0;
 }

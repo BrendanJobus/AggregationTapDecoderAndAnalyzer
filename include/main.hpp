@@ -29,6 +29,8 @@ namespace headerStructure {
 
 	// length in bytes of the arista types struct
 	constexpr int ARISTA_TYPES_LENGTH{4};
+	constexpr u_short taiCode{0x10};
+	constexpr u_short sixtyFourBitCode{0x1};
 	// Version is the TAI or UTC
 	// TAI is 0010 and UTC is 0110
 	// subType is 64 or 48 bit
