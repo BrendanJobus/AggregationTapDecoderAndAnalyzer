@@ -40,6 +40,12 @@ int main() {
 	pcap_if_t *alldevsp, *device;
 	pcap_t *handle;
 
+	/* 
+	// These two lines are examples of how to hardcode a devname 
+	//char devname[5] = {'w', 'l', 'o', '1'};
+	//devname[4] = 0;
+	*/
+
 	char errbuf[100], *devname, devs[100][100];
 	int count = 1, n;
 
@@ -92,5 +98,5 @@ void process_packet(u_char *args, const struct pcap_pkthdr *header, const u_char
 	printf("Epoch Time: %ld:%ld seconds\n", header->ts.tv_sec, header->ts.tv_usec);
 
 	ethernet = (struct sniff_ethernet*)(buffer);
-	std::cout << std::hex << ethernet->ether_dhost << '\n';
+	std::cout << std::hex << ntohs(ethernet->ether_type) << '\n';
 }
