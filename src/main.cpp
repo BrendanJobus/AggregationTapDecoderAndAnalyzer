@@ -18,6 +18,27 @@ private:
 	// Opens a file to print to, this will be a csv file
 	FILE *fp;
 
+	//Get offset between TAI and UTC
+	long getTaiToUtcOffset()
+	{
+	    //Get current TAI Time
+	    u_long timeTAI = 0;
+	    //Get current UTC Time
+	    u_long timeUTC = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	    //temporary test value
+	    return -37;
+	    return timeTAI - timeUTC;
+	}
+
+	//Offset between TAI and UTC
+	const int TAI_UTC_OFFSET = getTaiToUtcOffset();
+
+	//Convert TAI to UTC
+	u_int taiToUtc(u_int taiTime)
+	{
+	    return taiTime + TAI_UTC_OFFSET;
+	}
+
 	void aristaFormat() {
 		// putting data into the aristaTypes variable
 		aristaTypes = (headerStructure::sniff_arista_types*)(packet + headerStructure::SIZE_ETHERNET);
@@ -30,13 +51,15 @@ private:
 			aristaTime64 = (headerStructure::sniff_arista_times_64*)(packet + headerStructure::SIZE_ETHERNET + headerStructure::ARISTA_TYPES_LENGTH);
 			std::cout << std::dec << "seconds: " << ntohl(aristaTime64->seconds) << " nanoseconds: " << ntohl(aristaTime64->nanoseconds) << '\n';
 			if(timeFormat == headerStructure::taiCode) {
-				// UTC conversion
+				std::cout << "Convert TAI to UTC\n";
+				std::cout << std::dec << "UTCseconds: " << taiToUtc(ntohl(aristaTime64->seconds)) << " nanoseconds: " << ntohl(aristaTime64->nanoseconds) << '\n';
 			}
 		} else {
 			aristaTime48 = (headerStructure::sniff_arista_times_48*)(packet + headerStructure::SIZE_ETHERNET + headerStructure::ARISTA_TYPES_LENGTH);
 			std::cout << std::dec << "seconds: " << ntohl(aristaTime48->seconds) << " nanoseconds: " << ntohl(aristaTime48->nanoseconds) << '\n';
 			if(timeFormat == headerStructure::taiCode) {
-				// UTC conversion
+				std::cout << "Convert TAI to UTC\n";
+				std::cout << std::dec << "UTCseconds: " << taiToUtc(ntohl(aristaTime48->seconds)) << " nanoseconds: " << ntohl(aristaTime48->nanoseconds) << '\n';
 			}
 		}
 	}
