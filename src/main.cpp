@@ -19,9 +19,8 @@ private:
 	FILE *fp;
 
 	//Get offset between TAI and UTC
-	long getTaiToUtcOffset()
-	{
-	    //Get current TAI Time
+	long getTaiToUtcOffset() {
+	    //Get current TAI Time (to be completed)
 	    u_long timeTAI = 0;
 	    //Get current UTC Time
 	    u_long timeUTC = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -34,8 +33,7 @@ private:
 	const int TAI_UTC_OFFSET = getTaiToUtcOffset();
 
 	//Convert TAI to UTC
-	u_int taiToUtc(u_int taiTime)
-	{
+	u_int taiToUtc(u_int taiTime) {
 	    return taiTime + TAI_UTC_OFFSET;
 	}
 
