@@ -123,11 +123,22 @@ int main(int argc, char **argv) {
 			}
 		}
 	} else {
-		// Opening the pcap file in memory, pcap_t will point to the start of the file
-		pcap_t *file = pcap_open_offline("./data/pCaps1.pcap", errbuff);
-		// pcap_next_ex returns a 1 so long as every thing is ok, so keep looping until its not 1
-		while(pcap_next_ex(file, &r.header, &r.packet) >= 0) {
-			r.workOnPCAP(file);
+		DIR *dir;
+		struct dirent *diread;
+		std::string directory = "./data/";
+
+		if ((dir = opendir(directory.c_str())) != nullptr) {
+			while ((diread = readdir(dir)) != nullptr) {
+				std::string str(diread->d_name);
+				str.insert(0, directory);
+				if(str.find(".pcap") != std::string::npos) {
+					pcap_t *file = pcap_open_offline(str.c_str(), errbuff);
+					while(pcap_next_ex(file, &r.header, &r.packet) >= 0) {
+						r.workOnPCAP(file);
+					}
+				} 
+			}
+			closedir(dir);
 		}
 	}
 

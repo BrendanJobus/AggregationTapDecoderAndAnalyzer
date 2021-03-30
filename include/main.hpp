@@ -16,6 +16,7 @@
 #include <arpa/inet.h>
 
 #include <pcap.h>
+#include <dirent.h>
 
 namespace headerStructure {
 	constexpr int SIZE_ETHERNET{14};
