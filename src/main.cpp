@@ -11,8 +11,45 @@ private:
 
 	int packetCount;
 
+	u_short dataFormat;
+	u_short timestampLength;
+	u_short timeFormat;
+
 	// Opens a file to print to, this will be a csv file
 	FILE *fp;
+
+	void aristaFormat() {
+		// putting data into the aristaTypes variable
+		aristaTypes = (headerStructure::sniff_arista_types*)(packet + headerStructure::SIZE_ETHERNET);
+		timestampLength = ntohs(aristaTypes->subType);
+		timeFormat  = ntohs(aristaTypes->version);
+		std::cout << "subType: " << timestampLength << " Version: " << timeFormat << '\n';
+
+		// 0x1 corresponds to 64 bit timestamp
+		if (timestampLength == 0x1) {
+			aristaTime64 = (headerStructure::sniff_arista_times_64*)(packet + headerStructure::SIZE_ETHERNET + headerStructure::ARISTA_TYPES_LENGTH);
+			std::cout << std::dec << "seconds: " << ntohl(aristaTime64->seconds) << " nanoseconds: " << ntohl(aristaTime64->nanoseconds) << '\n';
+			if(timeFormat == 0x10) {
+				// UTC conversion
+			}
+		} else {
+			aristaTime48 = (headerStructure::sniff_arista_times_48*)(packet + headerStructure::SIZE_ETHERNET + headerStructure::ARISTA_TYPES_LENGTH);
+			std::cout << std::dec << "seconds: " << ntohl(aristaTime48->seconds) << " nanoseconds: " << ntohl(aristaTime48->nanoseconds) << '\n';
+			if(timeFormat == 0x10) {
+				// UTC conversion
+			}
+		}
+	}
+
+	// here we will do the basic analysis of the timestamps
+	void timestampAnalysis() {
+
+	}
+
+	// pre-emptive creation of function to deal with csv things
+	void CSV() {
+
+	}
 
 public:
 	// This is the pointer that will hold the packet once we do pcap_next_ex
@@ -21,7 +58,7 @@ public:
 	// This will store the pcap header, which holds information pertinent to pcap
 	struct pcap_pkthdr *header;
 
-	PCAP_Reader(): packetCount{0}, fp{fopen("./out/result.txt", "w")}
+	PCAP_Reader(): packetCount{0}, dataFormat{0}, fp{fopen("./out/result.txt", "w")}
 	{
 	}
 
@@ -45,7 +82,7 @@ public:
 
 		// putting data into the ethernet variable
 		ethernet = (headerStructure::sniff_ethernet*)(packet);
-		const u_short dataFormat{ntohs(ethernet->ether_type)};
+		dataFormat = ntohs(ethernet->ether_type);
 		std::cout << std::hex << dataFormat << '\n';
 
 		// switching depending on the type of packet we have received (e.g. arista format)
@@ -58,39 +95,8 @@ public:
 				break;
 		}
 
-		// NOTE: the ntohl and ntohs is to convert from the standard network order into your machines order of bits, for efficiency of typing, 
-		// I have just run the function on the data, however, this actual creates a new variable each time implicitly, and then passes it to cout
-		// for production, we should have a pointer that actually holds this data, that we predefine and always use, so that we are not wasting memory.
-
 		printf("\n");
 		fprintf(fp, "\n");
-	}
-
-	void aristaFormat() {
-		// putting data into the aristaTypes variable, the packet + SIZE_ETHERNET means start at the memory address of packet + the length of the ethernet
-		// header
-		aristaTypes = (headerStructure::sniff_arista_types*)(packet + headerStructure::SIZE_ETHERNET);
-		std::cout << "subType: " << ntohs(aristaTypes->subType) << " Version: " << ntohs(aristaTypes->version) << '\n';
-
-		// if the sub type is 0x1, then the timestamp is in 64 bits, otherwise its in 48 bits
-		if (ntohs(aristaTypes->subType) == 0x1) {
-			// put the data at packet + SIZE_ETHERNET + ARISTA_TYPES_LENGTH into aristaTime64
-			aristaTime64 = (headerStructure::sniff_arista_times_64*)(packet + headerStructure::SIZE_ETHERNET + headerStructure::ARISTA_TYPES_LENGTH);
-			std::cout << std::dec << "seconds: " << ntohl(aristaTime64->seconds) << " nanoseconds: " << ntohl(aristaTime64->nanoseconds) << '\n';
-		} else {
-			aristaTime48 = (headerStructure::sniff_arista_times_48*)(packet + headerStructure::SIZE_ETHERNET + headerStructure::ARISTA_TYPES_LENGTH);
-			std::cout << std::dec << "seconds: " << ntohl(aristaTime48->seconds) << " nanoseconds: " << ntohl(aristaTime48->nanoseconds) << '\n';
-		}
-	}
-
-	// here we will do the basic analysis of the timestamps
-	void timestampAnalysis() {
-
-	}
-
-	// pre-emptive creation of function to deal with csv things
-	void CSV() {
-
 	}
 
 	// deallocates memory after we have finished
@@ -99,18 +105,30 @@ public:
 	}
 };
 
-int main() {   
+int main(int argc, char **argv) {   
+	PCAP_Reader r{};
+
 	// This is the buffer that pcap uses to output the error into
 	char errbuff[PCAP_ERRBUF_SIZE];
 
-	// Opening the pcap file in memory, pcap_t will point to the start of the file
-	pcap_t *file = pcap_open_offline("./data/pCaps1.pcap", errbuff);
+	if(argc > 1) {
+		for(int i{1}; i < argc; i++){
+			std::cout << argv[i] << '\n';
+			// Opening the pcap file in memory, pcap_t will point to the start of the file
+			pcap_t *file = pcap_open_offline(argv[i], errbuff);
 
-	PCAP_Reader r{};
-
-	// pcap_next_ex returns a 1 so long as every thing is ok, so keep looping until its not 1
-	while(pcap_next_ex(file, &r.header, &r.packet) >= 0) {
-		r.workOnPCAP(file);
+			// pcap_next_ex returns a 1 so long as every thing is ok, so keep looping until its not 1
+			while(pcap_next_ex(file, &r.header, &r.packet) >= 0) {
+				r.workOnPCAP(file);
+			}
+		}
+	} else {
+		// Opening the pcap file in memory, pcap_t will point to the start of the file
+		pcap_t *file = pcap_open_offline("./data/pCaps1.pcap", errbuff);
+		// pcap_next_ex returns a 1 so long as every thing is ok, so keep looping until its not 1
+		while(pcap_next_ex(file, &r.header, &r.packet) >= 0) {
+			r.workOnPCAP(file);
+		}
 	}
 
 	return 0;
