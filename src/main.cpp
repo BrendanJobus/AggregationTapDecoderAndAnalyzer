@@ -18,6 +18,12 @@ private:
 	// Opens a file to print to, this will be a csv file
 	FILE *fp;
 
+	// This is the pointer that will hold the packet once we do pcap_next_ex
+	const u_char *packet;
+
+	// This will store the pcap header, which holds information pertinent to pcap
+	struct pcap_pkthdr *header;
+
 	void aristaFormat() {
 		// putting data into the aristaTypes variable
 		aristaTypes = (headerStructure::sniff_arista_types*)(packet + headerStructure::SIZE_ETHERNET);
@@ -52,51 +58,48 @@ private:
 	}
 
 public:
-	// This is the pointer that will hold the packet once we do pcap_next_ex
-	const u_char *packet;
-
-	// This will store the pcap header, which holds information pertinent to pcap
-	struct pcap_pkthdr *header;
-
 	PCAP_Reader(): packetCount{0}, dataFormat{0}, fp{fopen("./out/result.txt", "w")}
 	{
 	}
 
 	// does the actual work on the pcaps
-	void workOnPCAP(pcap_t *file) {
-		// printing the packet count
-		printf("Packet # %i\n", ++packetCount);
-		fprintf(fp, "Packet # %i\n", packetCount);
+	void workOnPCAPs(pcap_t *file) {
+		// pcap_next_ex returns a 1 so long as every thing is ok, so keep looping until its not 1
+		while(pcap_next_ex(file, &header, &packet) >= 0) {
+			// printing the packet count
+			printf("Packet # %i\n", ++packetCount);
+			fprintf(fp, "Packet # %i\n", packetCount);
 
-		// printing the length of the data
-		printf("Packet size: %d bytes\n", header->len);
-		fprintf(fp, "Packet size: %d\n", header->len);
+			// printing the length of the data
+			printf("Packet size: %d bytes\n", header->len);
+			fprintf(fp, "Packet size: %d\n", header->len);
 
-		// making sure the captured length is the same as the data length
-		if(header->len != header->caplen)
-			printf("Warning! Capture size different than packet size: %d bytes\n", header->len);
+			// making sure the captured length is the same as the data length
+			if(header->len != header->caplen)
+				printf("Warning! Capture size different than packet size: %d bytes\n", header->len);
 
-		// printing out time that we captured the data
-		printf("Epoch Time: %ld:%ld seconds\n", header->ts.tv_sec, header->ts.tv_usec);
-		fprintf(fp, "Epoch Time: %ld:%ld seconds\n", header->ts.tv_sec, header->ts.tv_usec);
+			// printing out time that we captured the data
+			printf("Epoch Time: %ld:%ld seconds\n", header->ts.tv_sec, header->ts.tv_usec);
+			fprintf(fp, "Epoch Time: %ld:%ld seconds\n", header->ts.tv_sec, header->ts.tv_usec);
 
-		// putting data into the ethernet variable
-		ethernet = (headerStructure::sniff_ethernet*)(packet);
-		dataFormat = ntohs(ethernet->ether_type);
-		std::cout << std::hex << dataFormat << '\n';
+			// putting data into the ethernet variable
+			ethernet = (headerStructure::sniff_ethernet*)(packet);
+			dataFormat = ntohs(ethernet->ether_type);
+			std::cout << std::hex << dataFormat << '\n';
 
-		// switching depending on the type of packet we have received (e.g. arista format)
-		switch(dataFormat) {
-			case 0xd28b:
-				aristaFormat();
-				break;
-			default:
-				// either output an unkown format error, or just ignore, maybe do a warning instead of an error
-				break;
+			// switching depending on the type of packet we have received (e.g. arista format)
+			switch(dataFormat) {
+				case 0xd28b:
+					aristaFormat();
+					break;
+				default:
+					// either output an unkown format error, or just ignore, maybe do a warning instead of an error
+					break;
+			}
+
+			printf("\n");
+			fprintf(fp, "\n");
 		}
-
-		printf("\n");
-		fprintf(fp, "\n");
 	}
 
 	// deallocates memory after we have finished
@@ -117,10 +120,7 @@ int main(int argc, char **argv) {
 			// Opening the pcap file in memory, pcap_t will point to the start of the file
 			pcap_t *file = pcap_open_offline(argv[i], errbuff);
 
-			// pcap_next_ex returns a 1 so long as every thing is ok, so keep looping until its not 1
-			while(pcap_next_ex(file, &r.header, &r.packet) >= 0) {
-				r.workOnPCAP(file);
-			}
+			r.workOnPCAPs(file);
 		}
 	} else {
 		DIR *dir;
@@ -133,9 +133,7 @@ int main(int argc, char **argv) {
 				str.insert(0, directory);
 				if(str.find(".pcap") != std::string::npos) {
 					pcap_t *file = pcap_open_offline(str.c_str(), errbuff);
-					while(pcap_next_ex(file, &r.header, &r.packet) >= 0) {
-						r.workOnPCAP(file);
-					}
+					r.workOnPCAPs(file);
 				} 
 			}
 			closedir(dir);
