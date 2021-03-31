@@ -20,6 +20,9 @@
 #include <dirent.h>
 
 namespace headerStructure {
+	constexpr u_short ARISTA_FORMAT_CODE{0xd28b};
+
+
 	constexpr int SIZE_ETHERNET{14};
 	constexpr int ETHER_ADDR_LEN{6};
 	struct sniff_ethernet {
@@ -50,4 +53,43 @@ namespace headerStructure {
 		u_short seconds;
 		u_int nanoseconds;
 	};
+};
+
+class PCAP_READER {
+	private:
+		const headerStructure::sniff_ethernet *ethernet;
+		const headerStructure::sniff_arista_types *aristaTypes;
+		const headerStructure::sniff_arista_times_64 *aristaTime64;
+		const headerStructure::sniff_arista_times_48 *aristaTime48;
+
+		int packetCount;
+
+		u_short data_format;
+		u_short timestampLength;
+		u_short timeFormat;
+
+		FILE *fp;
+
+		const u_char *packet;
+
+		struct pcap_pkthdr *header;
+
+		const int TAI_UTC_OFFSET;
+
+		int getTaiToUtcOffset();
+
+		u_int taiToUtc(u_int);
+
+		void aristaFormat();
+
+		void timestampAnalysis();
+
+		void CSV();
+
+	public:
+		PCAP_READER();
+
+		void workOnPCAPs(pcap_t *);
+
+		void destroy();
 };
