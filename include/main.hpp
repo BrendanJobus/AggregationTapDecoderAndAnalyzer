@@ -3,8 +3,6 @@
 #include <iostream>
 #include <vector>
 
-#include <chrono>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,14 +14,18 @@
 #include <netinet/udp.h>
 #include <arpa/inet.h>
 
+
+// These are the headers we are definitley using right now
 #include <pcap.h>
 #include <dirent.h>
+#include <unordered_map>
+#include <chrono>
 
 namespace headerStructure {
-	constexpr u_short ARISTA_FORMAT_CODE{0xd28b};
+	enum format_code {
+		arista_code = 0xd28b
+	};
 
-
-	constexpr int SIZE_ETHERNET{14};
 	constexpr int ETHER_ADDR_LEN{6};
 	struct sniff_ethernet {
 		u_char ether_dhost[ETHER_ADDR_LEN];
@@ -31,36 +33,41 @@ namespace headerStructure {
 		u_short ether_type;
 	};
 
-	// length in bytes of the arista types struct
-	constexpr int ARISTA_TYPES_LENGTH{4};
-	constexpr u_short taiCode{0x10};
-	constexpr u_short sixtyFourBitCode{0x1};
-	// Version is the TAI or UTC
-	// TAI is 0010 and UTC is 0110
-	// subType is 64 or 48 bit
-	// 64 bit is 0001 and 48 bit is 
-	struct sniff_arista_types {
-		u_short subType;
-		u_short version;
-	};
+	// information related to arista timestamp header format
+	namespace arista {
+		// length in bytes of the arista types struct
+		constexpr int TYPES_POS{14};
+		constexpr int TIMES_POS{18};
+		constexpr u_short taiCode{0x10};
+		constexpr u_short sixtyFourBitCode{0x1};
 
-	struct sniff_arista_times_64 {
-		u_int seconds;
-		u_int nanoseconds;
-	};
+			// Version is the TAI or UTC
+		// TAI is 0010 and UTC is 0110
+		// subType is 64 or 48 bit
+		// 64 bit is 0001 and 48 bit is 
+		struct sniff_types {
+			u_short subType;
+			u_short version;
+		};
 
-	struct sniff_arista_times_48 {
-		u_short seconds;
-		u_int nanoseconds;
-	};
+		struct sniff_times_64 {
+			u_int seconds;
+			u_int nanoseconds;
+		};
+
+		struct sniff_times_48 {
+			u_short seconds;
+			u_int nanoseconds;
+		};
+	}
 };
 
 class PCAP_READER {
 	private:
 		const headerStructure::sniff_ethernet *ethernet;
-		const headerStructure::sniff_arista_types *aristaTypes;
-		const headerStructure::sniff_arista_times_64 *aristaTime64;
-		const headerStructure::sniff_arista_times_48 *aristaTime48;
+		const headerStructure::arista::sniff_types *aristaTypes;
+		const headerStructure::arista::sniff_times_64 *aristaTime64;
+		const headerStructure::arista::sniff_times_48 *aristaTime48;
 
 		int packetCount;
 
@@ -80,7 +87,7 @@ class PCAP_READER {
 
 		u_int taiToUtc(u_int);
 
-		void aristaFormat();
+		void extractTimeAristaFormat();
 
 		void timestampAnalysis();
 

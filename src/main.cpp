@@ -5,9 +5,9 @@ class PCAP_Reader {
 	private:
 		// each struct corresponds to a number of bits in the packets memory, to find out what each means, look at the structs
 		const headerStructure::sniff_ethernet *ethernet;
-		const headerStructure::sniff_arista_types *aristaTypes;
-		const headerStructure::sniff_arista_times_64 *aristaTime64;
-		const headerStructure::sniff_arista_times_48 *aristaTime48;
+		const headerStructure::arista::sniff_types *aristaTypes;
+		const headerStructure::arista::sniff_times_64 *aristaTime64;
+		const headerStructure::arista::sniff_times_48 *aristaTime48;
 
 		int packetCount;
 
@@ -24,11 +24,14 @@ class PCAP_Reader {
 		// This will store the pcap header, which holds information pertinent to pcap
 		struct pcap_pkthdr *header;
 
+		u_long seconds;
+		u_long nanoseconds;
+
 		//Offset between TAI and UTC
-		const int TAI_UTC_OFFSET;
+		const u_int TAI_UTC_OFFSET;
 
 		//Get offset between TAI and UTC
-		int getTaiToUtcOffset() {
+		u_int getTaiToUtcOffset() {
 			//Get current TAI Time (to be completed)
 			u_long timeTAI = 0;
 			//Get current UTC Time
@@ -39,34 +42,42 @@ class PCAP_Reader {
 		}
 
 		//Convert TAI to UTC
-		u_int taiToUtc(u_int taiTime) {
+		u_long taiToUtc(u_long taiTime) {
 			return taiTime + TAI_UTC_OFFSET;
 		}
 
-		void aristaFormat() {
+///////////// These functions extract the agg tap times from the packets, each one will work for its corresponding packet format /////////////
+		void extractTimeAristaFormat() {
 			// putting data into the aristaTypes variable
-			aristaTypes = (headerStructure::sniff_arista_types*)(packet + headerStructure::SIZE_ETHERNET);
+			aristaTypes = (headerStructure::arista::sniff_types*)(packet + headerStructure::arista::TYPES_POS);
+
 			timestampLength = ntohs(aristaTypes->subType);
 			timeFormat  = ntohs(aristaTypes->version);
-			std::cout << "subType: " << timestampLength << " Version: " << timeFormat << '\n';
 
-			// 0x1 corresponds to 64 bit timestamp
-			if (timestampLength == headerStructure::sixtyFourBitCode) {
-				aristaTime64 = (headerStructure::sniff_arista_times_64*)(packet + headerStructure::SIZE_ETHERNET + headerStructure::ARISTA_TYPES_LENGTH);
-				std::cout << std::dec << "seconds: " << ntohl(aristaTime64->seconds) << " nanoseconds: " << ntohl(aristaTime64->nanoseconds) << '\n';
-				if(timeFormat == headerStructure::taiCode) {
+			if (timestampLength == headerStructure::arista::sixtyFourBitCode) {
+				aristaTime64 = (headerStructure::arista::sniff_times_64*)(packet + headerStructure::arista::TIMES_POS);
+								
+				seconds = ntohl(aristaTime64->seconds);
+				nanoseconds = ntohl(aristaTime64->seconds);
+
+				if(timeFormat == headerStructure::arista::taiCode) {
 					std::cout << "Convert TAI to UTC\n";
-					std::cout << std::dec << "UTCseconds: " << taiToUtc(ntohl(aristaTime64->seconds)) << " nanoseconds: " << ntohl(aristaTime64->nanoseconds) << '\n';
+					seconds = taiToUtc(seconds);
 				}
-			} else {
-				aristaTime48 = (headerStructure::sniff_arista_times_48*)(packet + headerStructure::SIZE_ETHERNET + headerStructure::ARISTA_TYPES_LENGTH);
-				std::cout << std::dec << "seconds: " << ntohl(aristaTime48->seconds) << " nanoseconds: " << ntohl(aristaTime48->nanoseconds) << '\n';
-				if(timeFormat == headerStructure::taiCode) {
+			} 
+			else {
+				aristaTime48 = (headerStructure::arista::sniff_times_48*)(packet + headerStructure::arista::TIMES_POS);
+
+				seconds = ntohl(aristaTime48->seconds);
+				nanoseconds = ntohl(aristaTime48->nanoseconds);
+
+				if(timeFormat == headerStructure::arista::taiCode) {
 					std::cout << "Convert TAI to UTC\n";
-					std::cout << std::dec << "UTCseconds: " << taiToUtc(ntohl(aristaTime48->seconds)) << " nanoseconds: " << ntohl(aristaTime48->nanoseconds) << '\n';
+					seconds = taiToUtc(seconds);
 				}
 			}
 		}
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		// here we will do the basic analysis of the timestamps
 		void timestampAnalysis() {
@@ -106,17 +117,19 @@ class PCAP_Reader {
 				// putting data into the ethernet variable
 				ethernet = (headerStructure::sniff_ethernet*)(packet);
 				dataFormat = ntohs(ethernet->ether_type);
-				std::cout << std::hex << dataFormat << '\n';
+				std::cout << "Data Format: " << std::hex << dataFormat << '\n';
 
 				// switching depending on the type of packet we have received (e.g. arista format)
 				switch(dataFormat) {
-					case headerStructure::ARISTA_FORMAT_CODE:
-						aristaFormat();
+					case headerStructure::arista_code:
+						extractTimeAristaFormat();
 						break;
 					default:
 						// either output an unkown format error, or just ignore, maybe do a warning instead of an error
 						break;
 				}
+
+				timestampAnalysis();
 
 				printf("\n");
 				fprintf(fp, "\n");
