@@ -46,10 +46,6 @@ class PCAP_Reader {
 			return taiTime + TAI_UTC_OFFSET;
 		}
 
-		void extractTimeIpv4Format() {
-
-		}
-
 ///////////// These functions extract the agg tap times from the packets, each one will work for its corresponding packet format /////////////
 		void extractTimeAristaFormat() {
 			// putting data into the aristaTypes variable
@@ -127,9 +123,6 @@ class PCAP_Reader {
 				switch(dataFormat) {
 					case headerStructure::arista_code:
 						extractTimeAristaFormat();
-						break;
-					case headerStructure::ipv4_code:
-						extractTimeIpv4Format();
 						break;
 					default:
 						// either output an unkown format error, or just ignore, maybe do a warning instead of an error

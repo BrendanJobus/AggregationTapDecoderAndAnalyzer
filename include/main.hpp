@@ -34,7 +34,8 @@ namespace headerStructure {
 		u_short ether_type;
 	};
 
-	namespace ipv4 {
+	// information related to vss timestamp header format
+	namespace vss {
 		
 	}
 
