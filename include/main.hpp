@@ -23,7 +23,8 @@
 
 namespace headerStructure {
 	enum format_code {
-		arista_code = 0xd28b
+		arista_code = 0xd28b,
+		ipv4_code = 0x800
 	};
 
 	constexpr int ETHER_ADDR_LEN{6};
@@ -32,6 +33,10 @@ namespace headerStructure {
 		u_char ether_shost[ETHER_ADDR_LEN];
 		u_short ether_type;
 	};
+
+	namespace ipv4 {
+		
+	}
 
 	// information related to arista timestamp header format
 	namespace arista {
