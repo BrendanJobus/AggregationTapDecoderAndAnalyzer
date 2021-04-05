@@ -27,23 +27,26 @@ class PCAP_Reader {
 		u_long seconds;
 		u_long nanoseconds;
 
+		u_long previousSeconds;
+		u_long previousNanoseconds;
+
 		//Offset between TAI and UTC
-		const u_int TAI_UTC_OFFSET;
+		const int TAI_UTC_OFFSET = getTaiToUtcOffset();
 
 		//Get offset between TAI and UTC
-		u_int getTaiToUtcOffset() {
-			//Get current TAI Time (to be completed)
-			u_long timeTAI = 0;
+		//@author Cillian Fogarty
+		int getTaiToUtcOffset() {
+			//Get current TAI Time
+			u_long timeTAI = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() - 37;
 			//Get current UTC Time
 			u_long timeUTC = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-			//temporary test value
-			return -37;
 			return timeTAI - timeUTC;
 		}
 
 		//Convert TAI to UTC
+		//@author Cillian Fogarty
 		u_long taiToUtc(u_long taiTime) {
-			return taiTime - 37;
+			return taiTime + TAI_UTC_OFFSET;
 		}
 
 ///////////// These functions extract the agg tap times from the packets, each one will work for its corresponding packet format /////////////
@@ -53,6 +56,9 @@ class PCAP_Reader {
 
 			timestampLength = ntohs(aristaTypes->subType);
 			timeFormat  = ntohs(aristaTypes->version);
+
+			previousSeconds = seconds;
+			previousNanoseconds = nanoseconds;
 
 			if (timestampLength == headerStructure::arista::sixtyFourBitCode) {
 				aristaTime64 = (headerStructure::arista::sniff_times_64*)(packet + headerStructure::arista::TIMES_POS);
@@ -76,20 +82,104 @@ class PCAP_Reader {
 					seconds = taiToUtc(seconds);
 				}
 			}
-			printf("seconds %ld\n", seconds);
-			printf("nanoseconds %ld\n", nanoseconds);
 		}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 		// here we will do the basic analysis of the timestamps
+		//@author Cillian Fogarty
 		void timestampAnalysis() {
 
+			//Time Packet was captured at (UTC)
+			printf("UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
+			fprintf(fp, "UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
+
+			//get offset between current and previous packet
+			long secondsFromPreviousPacket = seconds - previousSeconds;
+			long nanosecondsFromPreviousPacket = 0;
+			int packetsInOrder = 1;
+			if (secondsFromPreviousPacket > 0)
+			{
+				//add 1 second in nanoseconds to current nanoseconds
+				nanosecondsFromPreviousPacket = (1000000000 + nanoseconds) - previousNanoseconds;
+			}
+			else if (secondsFromPreviousPacket < 0)
+			{
+				//add 1 second in nanoseconds to previous nanoseconds
+				nanosecondsFromPreviousPacket = nanoseconds - (1000000000 + previousNanoseconds);
+				packetsInOrder = 0;
+			}
+			else
+			{
+				nanosecondsFromPreviousPacket = nanoseconds - previousNanoseconds;
+			}
+			printf("Offset from previous packet: %ld:%ld seconds\n", secondsFromPreviousPacket, nanosecondsFromPreviousPacket);
+			fprintf(fp, "Offset from previous packet: %ld:%ld seconds\n", secondsFromPreviousPacket, nanosecondsFromPreviousPacket);
+
+			//check packets arrived in the correct order
+			if (packetsInOrder == 1)
+			{
+				printf("Packets in order\n");
+				fprintf(fp, "Packets in order\n");
+			}
+			else
+			{
+				printf("Packets not in order\n");
+				fprintf(fp, "Packets not in order\n");
+			}
+
+			//get offset between current packet and Aggregation Tap
+			u_long currentTimeUTC = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			u_long currentTimeNanosecondsUTC = currentTimeUTC
+
+			printf("Current: %ld:%ld seconds\n", currentTimeSecondsUTC, currentTimeNanosecondsUTC);
+			long secondsFromAggregationTap = seconds - previousSeconds;
+			long nanosecondsFromAggregationTap = 0;
+			int timesConsistent = 1;
+			if (secondsFromAggregationTap > 0)
+			{
+				//add 1 second in nanoseconds to current nanoseconds
+				nanosecondsFromAggregationTap = (1000000000 + nanoseconds) - previousNanoseconds;
+			}
+			else if (secondsFromPreviousPacket < 0)
+			{
+				//add 1 second in nanoseconds to previous nanoseconds
+				nanosecondsFromAggregationTap = nanoseconds - (1000000000 + previousNanoseconds);
+				timesConsistent = 0;
+			}
+			else
+			{
+				nanosecondsFromPreviousPacket = nanoseconds - previousNanoseconds;
+			}
+			printf("Offset from Aggregation Tap: %ld:%ld seconds\n", secondsFromAggregationTap, nanosecondsFromAggregationTap);
+			fprintf(fp, "Offset from Aggregation Tap: %ld:%ld seconds\n", secondsFromAggregationTap, nanosecondsFromAggregationTap);
+
+			//check packet time and Aggregation Tap time consistent
+			if (timesConsistent == 1)
+			{
+				printf("Packet time and Aggregation Tap time consistent\n");
+				fprintf(fp, "Packet time and Aggregation Tap time consistent\n");
+			}
+			else
+			{
+				printf("Packet time and Aggregation Tap time not consistent\n");
+				fprintf(fp, "Packet time and Aggregation Tap time not consistent\n");
+			}
 		}
+
+		// extract and print the packet metadata
+		//@author Cillian Fogarty
+		void printPacketMetadata() {
+			printf("Metadata: TO COMPLETE\n");
+			fprintf(fp, "Metadata: TO COMPLETE\n");
+		}
+
 
 		// pre-emptive creation of function to deal with csv things
 		void CSV() {
 
 		}
+
+
 
 	public:
 		PCAP_Reader(): packetCount{0}, dataFormat{0}, fp{fopen("./out/result.txt", "w")}, TAI_UTC_OFFSET{getTaiToUtcOffset()}
@@ -120,6 +210,8 @@ class PCAP_Reader {
 				ethernet = (headerStructure::sniff_ethernet*)(packet);
 				dataFormat = ntohs(ethernet->ether_type);
 				std::cout << "Data Format: " << std::hex << dataFormat << '\n';
+
+				printPacketMetadata();
 
 				// switching depending on the type of packet we have received (e.g. arista format)
 				switch(dataFormat) {

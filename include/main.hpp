@@ -97,6 +97,8 @@ class PCAP_READER {
 
 		void timestampAnalysis();
 
+		void printPacketMetadata();
+
 		void CSV();
 
 	public:
