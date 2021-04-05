@@ -87,7 +87,7 @@ class PCAP_Reader {
 
 		// here we will do the basic analysis of the timestamps
 		//@author Cillian Fogarty
-		void timestampAnalysis() {
+		void timestampAnalysis(u_int epochSeconds, u_int epochNanoseconds) {
 
 			//Time Packet was captured at (UTC)
 			printf("UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
@@ -128,27 +128,23 @@ class PCAP_Reader {
 			}
 
 			//get offset between current packet and Aggregation Tap
-			u_long currentTimeNanosecondsUTC = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-			u_long currentTimeSecondsUTC = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();;
-
-			printf("Current: %ld:%ld seconds\n", currentTimeSecondsUTC, currentTimeNanosecondsUTC);
-			long secondsFromAggregationTap = seconds - previousSeconds;
+			long secondsFromAggregationTap = seconds - epochSeconds;
 			long nanosecondsFromAggregationTap = 0;
 			int timesConsistent = 1;
 			if (secondsFromAggregationTap > 0)
 			{
 				//add 1 second in nanoseconds to current nanoseconds
-				nanosecondsFromAggregationTap = (1000000000 + nanoseconds) - previousNanoseconds;
+				nanosecondsFromAggregationTap = (1000000000 + nanoseconds) - epochNanoseconds;
 			}
 			else if (secondsFromPreviousPacket < 0)
 			{
 				//add 1 second in nanoseconds to previous nanoseconds
-				nanosecondsFromAggregationTap = nanoseconds - (1000000000 + previousNanoseconds);
+				nanosecondsFromAggregationTap = nanoseconds - (1000000000 + epochNanoseconds);
 				timesConsistent = 0;
 			}
 			else
 			{
-				nanosecondsFromPreviousPacket = nanoseconds - previousNanoseconds;
+				nanosecondsFromAggregationTap = nanoseconds - epochNanoseconds;
 			}
 			printf("Offset from Aggregation Tap: %ld:%ld seconds\n", secondsFromAggregationTap, nanosecondsFromAggregationTap);
 			fprintf(fp, "Offset from Aggregation Tap: %ld:%ld seconds\n", secondsFromAggregationTap, nanosecondsFromAggregationTap);
@@ -156,13 +152,13 @@ class PCAP_Reader {
 			//check packet time and Aggregation Tap time consistent
 			if (timesConsistent == 1)
 			{
-				printf("Packet time and Aggregation Tap time consistent\n");
-				fprintf(fp, "Packet time and Aggregation Tap time consistent\n");
+				printf("Packet time and Aggregation Tap time are consistent\n");
+				fprintf(fp, "Packet time and Aggregation Tap time are consistent\n");
 			}
 			else
 			{
-				printf("Packet time and Aggregation Tap time not consistent\n");
-				fprintf(fp, "Packet time and Aggregation Tap time not consistent\n");
+				printf("Packet time and Aggregation Tap time are not consistent\n");
+				fprintf(fp, "Packet time and Aggregation Tap time are not consistent\n");
 			}
 		}
 
@@ -223,7 +219,7 @@ class PCAP_Reader {
 						break;
 				}
 
-				timestampAnalysis();
+				timestampAnalysis(header->ts.tv_sec, header->ts.tv_usec);
 
 				printf("\n");
 				fprintf(fp, "\n");

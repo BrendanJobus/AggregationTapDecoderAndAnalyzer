@@ -95,7 +95,7 @@ class PCAP_READER {
 
 		void extractTimeAristaFormat();
 
-		void timestampAnalysis();
+		void timestampAnalysis(u_int , u_int);
 
 		void printPacketMetadata();
 
