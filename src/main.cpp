@@ -190,7 +190,7 @@ class PCAP_Reader {
 		        int byte_count = 0;
 		        while (byte_count++ < metadata_length) {
 		            printf("%02X ", *temp_pointer);
-		            fprintf(fp, "%X", *temp_pointer);
+		            fprintf(fp, "%02X ", *temp_pointer);
 		            temp_pointer++;
 		        }
 		        printf("\n");
