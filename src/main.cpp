@@ -97,12 +97,12 @@ class PCAP_Reader {
 			long secondsFromPreviousPacket = seconds - previousSeconds;
 			long nanosecondsFromPreviousPacket = 0;
 			int packetsInOrder = 1;
-			if (secondsFromPreviousPacket > 0)
+			if (secondsFromPreviousPacket > 0  && nanoseconds < previousNanoseconds)
 			{
 				//add 1 second in nanoseconds to current nanoseconds
 				nanosecondsFromPreviousPacket = (1000000000 + nanoseconds) - previousNanoseconds;
 			}
-			else if (secondsFromPreviousPacket < 0)
+			else if (secondsFromPreviousPacket < 0 && nanoseconds > previousNanoseconds)
 			{
 				//add 1 second in nanoseconds to previous nanoseconds
 				nanosecondsFromPreviousPacket = nanoseconds - (1000000000 + previousNanoseconds);
@@ -118,25 +118,25 @@ class PCAP_Reader {
 			//check packets arrived in the correct order
 			if (packetsInOrder == 1)
 			{
-				printf("Packets in order\n");
-				fprintf(fp, "Packets in order\n");
+				printf("Packets are in order\n");
+				fprintf(fp, "Packets are in order\n");
 			}
 			else
 			{
-				printf("Packets not in order\n");
-				fprintf(fp, "Packets not in order\n");
+				printf("Packets are not in order\n");
+				fprintf(fp, "Packets are not in order\n");
 			}
 
 			//get offset between current packet and Aggregation Tap
 			long secondsFromAggregationTap = seconds - epochSeconds;
 			long nanosecondsFromAggregationTap = 0;
 			int timesConsistent = 1;
-			if (secondsFromAggregationTap > 0)
+			if (secondsFromAggregationTap > 0 && nanoseconds < epochNanoseconds)
 			{
 				//add 1 second in nanoseconds to current nanoseconds
 				nanosecondsFromAggregationTap = (1000000000 + nanoseconds) - epochNanoseconds;
 			}
-			else if (secondsFromPreviousPacket < 0)
+			else if (secondsFromPreviousPacket < 0 && nanoseconds > epochNanoseconds)
 			{
 				//add 1 second in nanoseconds to previous nanoseconds
 				nanosecondsFromAggregationTap = nanoseconds - (1000000000 + epochNanoseconds);
