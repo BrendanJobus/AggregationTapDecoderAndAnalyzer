@@ -128,8 +128,8 @@ class PCAP_Reader {
 			}
 
 			//get offset between current packet and Aggregation Tap
-			u_long currentTimeUTC = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-			u_long currentTimeNanosecondsUTC = currentTimeUTC
+			u_long currentTimeNanosecondsUTC = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			u_long currentTimeSecondsUTC = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();;
 
 			printf("Current: %ld:%ld seconds\n", currentTimeSecondsUTC, currentTimeNanosecondsUTC);
 			long secondsFromAggregationTap = seconds - previousSeconds;
