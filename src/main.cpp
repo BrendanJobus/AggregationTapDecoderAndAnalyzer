@@ -43,7 +43,7 @@ class PCAP_Reader {
 
 		//Convert TAI to UTC
 		u_long taiToUtc(u_long taiTime) {
-			return taiTime + TAI_UTC_OFFSET;
+			return taiTime - 37;
 		}
 
 ///////////// These functions extract the agg tap times from the packets, each one will work for its corresponding packet format /////////////
@@ -58,7 +58,7 @@ class PCAP_Reader {
 				aristaTime64 = (headerStructure::arista::sniff_times_64*)(packet + headerStructure::arista::TIMES_POS);
 								
 				seconds = ntohl(aristaTime64->seconds);
-				nanoseconds = ntohl(aristaTime64->seconds);
+				nanoseconds = ntohl(aristaTime64->nanoseconds);
 
 				if(timeFormat == headerStructure::arista::taiCode) {
 					std::cout << "Convert TAI to UTC\n";
@@ -76,6 +76,8 @@ class PCAP_Reader {
 					seconds = taiToUtc(seconds);
 				}
 			}
+			printf("seconds %ld\n", seconds);
+			printf("nanoseconds %ld\n", nanoseconds);
 		}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
