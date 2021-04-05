@@ -67,7 +67,8 @@ class PCAP_Reader {
 				nanoseconds = ntohl(aristaTime64->nanoseconds);
 
 				if(timeFormat == headerStructure::arista::taiCode) {
-					std::cout << "Convert TAI to UTC\n";
+					printf("Converted Timestamp from TAI to UTC\n");
+					fprintf(fp, "Converted Timestamp from TAI to UTC\n");
 					seconds = taiToUtc(seconds);
 				}
 			} 
@@ -78,7 +79,8 @@ class PCAP_Reader {
 				nanoseconds = ntohl(aristaTime48->nanoseconds);
 
 				if(timeFormat == headerStructure::arista::taiCode) {
-					std::cout << "Convert TAI to UTC\n";
+					printf("Converted Timestamp from TAI to UTC\n");
+					fprintf(fp, "Converted Timestamp from TAI to UTC\n");
 					seconds = taiToUtc(seconds);
 				}
 			}
@@ -164,9 +166,36 @@ class PCAP_Reader {
 
 		// extract and print the packet metadata
 		//@author Cillian Fogarty
-		void printPacketMetadata() {
-			printf("Metadata: TO COMPLETE\n");
-			fprintf(fp, "Metadata: TO COMPLETE\n");
+		void printPacketMetadata(const u_char *packet) {
+			int ethernet_header_length = 32; //constant length in bytes
+			const u_char *ip_header = packet + ethernet_header_length;
+			u_int ip_header_length = (((*ip_header) & 0x0F) * 4);
+			//printf("IP size: %d bytes\n", ip_header_length);
+
+			int length_udp_source = 2;
+			const u_char *udp_header = packet + ethernet_header_length + ip_header_length + (length_udp_source * 2);
+			const u_char *udp_header2 = udp_header + 1;
+			int udp_header_length = ((*udp_header) << 8) + (*udp_header2);
+			//printf("UDP size: %d bytes\n", udp_header_length);
+
+			int length_udp_info = (length_udp_source * 4); //num of bytes taken up to represent the length of UDP, the sources and checksum
+			const u_char *metadata_header = packet + ethernet_header_length + ip_header_length + length_udp_info;
+			int metadata_length = udp_header_length - length_udp_info;
+			//printf("Metadata size: %d bytes\n", udp_header_length);
+
+			printf("Metadata:\n");
+			fprintf(fp, "Metadata: \n");
+			if (metadata_length > 0) {
+		        const u_char *temp_pointer = metadata_header;
+		        int byte_count = 0;
+		        while (byte_count++ < metadata_length) {
+		            printf("%X", *temp_pointer);
+		            fprintf(fp, "%X", *temp_pointer);
+		            temp_pointer++;
+		        }
+		        printf("\n");
+		        fprintf(fp, "\n");
+		    }
 		}
 
 
@@ -207,7 +236,7 @@ class PCAP_Reader {
 				dataFormat = ntohs(ethernet->ether_type);
 				std::cout << "Data Format: " << std::hex << dataFormat << '\n';
 
-				printPacketMetadata();
+				printPacketMetadata(packet);
 
 				// switching depending on the type of packet we have received (e.g. arista format)
 				switch(dataFormat) {
