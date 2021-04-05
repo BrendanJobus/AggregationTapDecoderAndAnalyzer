@@ -37,10 +37,10 @@ class PCAP_Reader {
 		//@author Cillian Fogarty
 		int getTaiToUtcOffset() {
 			//Get current TAI Time
-			u_long timeTAI = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() - 37;
+			u_long timeTAI = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() + 37;
 			//Get current UTC Time
 			u_long timeUTC = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-			return timeTAI - timeUTC;
+			return timeUTC - timeTAI;
 		}
 
 		//Convert TAI to UTC
@@ -87,7 +87,7 @@ class PCAP_Reader {
 		}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-		// here we will do the basic analysis of the timestamps
+		// timestamp analysis
 		//@author Cillian Fogarty
 		void timestampAnalysis(u_int epochSeconds, u_int epochNanoseconds) {
 
@@ -95,70 +95,68 @@ class PCAP_Reader {
 			printf("UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
 			fprintf(fp, "UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
 
-			//get offset between current and previous packet
+			// get offset between current and previous packet
 			long secondsFromPreviousPacket = seconds - previousSeconds;
 			long nanosecondsFromPreviousPacket = 0;
 			int packetsInOrder = 1;
-			if (secondsFromPreviousPacket > 0  && nanoseconds < previousNanoseconds)
-			{
-				//add 1 second in nanoseconds to current nanoseconds
-				nanosecondsFromPreviousPacket = (1000000000 + nanoseconds) - previousNanoseconds;
+			//ensures there has been a previous packet
+			if (previousSeconds != 0 && previousNanoseconds != 0) {
+				if (secondsFromPreviousPacket > 0  && nanoseconds < previousNanoseconds) {
+					// add 1 second in nanoseconds to current nanoseconds
+					nanosecondsFromPreviousPacket = (1000000000 + nanoseconds) - previousNanoseconds;
+				}
+				else if (secondsFromPreviousPacket < 0 && nanoseconds > previousNanoseconds) {
+					// add 1 second in nanoseconds to previous nanoseconds
+					nanosecondsFromPreviousPacket = nanoseconds - (1000000000 + previousNanoseconds);
+					packetsInOrder = 0;
+				}
+				else
+				{
+					nanosecondsFromPreviousPacket = nanoseconds - previousNanoseconds;
+				}
 			}
-			else if (secondsFromPreviousPacket < 0 && nanoseconds > previousNanoseconds)
-			{
-				//add 1 second in nanoseconds to previous nanoseconds
-				nanosecondsFromPreviousPacket = nanoseconds - (1000000000 + previousNanoseconds);
-				packetsInOrder = 0;
-			}
-			else
-			{
-				nanosecondsFromPreviousPacket = nanoseconds - previousNanoseconds;
+			else {
+				secondsFromPreviousPacket = 0;
+				nanosecondsFromPreviousPacket = 0;
 			}
 			printf("Offset from previous packet: %ld:%ld seconds\n", secondsFromPreviousPacket, nanosecondsFromPreviousPacket);
 			fprintf(fp, "Offset from previous packet: %ld:%ld seconds\n", secondsFromPreviousPacket, nanosecondsFromPreviousPacket);
 
-			//check packets arrived in the correct order
-			if (packetsInOrder == 1)
-			{
+			// check packets arrived in the correct order
+			if (packetsInOrder == 1) {
 				printf("Packets are in order\n");
 				fprintf(fp, "Packets are in order\n");
 			}
-			else
-			{
+			else {
 				printf("Packets are not in order\n");
 				fprintf(fp, "Packets are not in order\n");
 			}
 
-			//get offset between current packet and Aggregation Tap
+			// get offset between current packet and Aggregation Tap
 			long secondsFromAggregationTap = seconds - epochSeconds;
 			long nanosecondsFromAggregationTap = 0;
 			int timesConsistent = 1;
-			if (secondsFromAggregationTap > 0 && nanoseconds < epochNanoseconds)
-			{
-				//add 1 second in nanoseconds to current nanoseconds
+			if (secondsFromAggregationTap > 0 && nanoseconds < epochNanoseconds) {
+				// add 1 second in nanoseconds to current nanoseconds
 				nanosecondsFromAggregationTap = (1000000000 + nanoseconds) - epochNanoseconds;
 			}
-			else if (secondsFromPreviousPacket < 0 && nanoseconds > epochNanoseconds)
-			{
-				//add 1 second in nanoseconds to previous nanoseconds
+			else if (secondsFromPreviousPacket < 0 && nanoseconds > epochNanoseconds) {
+				// add 1 second in nanoseconds to epoch nanoseconds
 				nanosecondsFromAggregationTap = nanoseconds - (1000000000 + epochNanoseconds);
 				timesConsistent = 0;
 			}
-			else
-			{
+			else {
 				nanosecondsFromAggregationTap = nanoseconds - epochNanoseconds;
 			}
 			printf("Offset from Aggregation Tap: %ld:%ld seconds\n", secondsFromAggregationTap, nanosecondsFromAggregationTap);
 			fprintf(fp, "Offset from Aggregation Tap: %ld:%ld seconds\n", secondsFromAggregationTap, nanosecondsFromAggregationTap);
 
-			//check packet time and Aggregation Tap time consistent
-			if (timesConsistent == 1)
-			{
+			// check packet time and Aggregation Tap time consistent
+			if (timesConsistent == 1) {
 				printf("Packet time and Aggregation Tap time are consistent\n");
 				fprintf(fp, "Packet time and Aggregation Tap time are consistent\n");
 			}
-			else
-			{
+			else {
 				printf("Packet time and Aggregation Tap time are not consistent\n");
 				fprintf(fp, "Packet time and Aggregation Tap time are not consistent\n");
 			}
@@ -166,25 +164,27 @@ class PCAP_Reader {
 
 		// extract and print the packet metadata
 		//@author Cillian Fogarty
-		void printPacketMetadata(const u_char *packet) {
+		void printPacketMetadata() {
+
+			// extract the length of the ip_data from the file
 			int ethernet_header_length = 32; //constant length in bytes
 			const u_char *ip_header = packet + ethernet_header_length;
 			u_int ip_header_length = (((*ip_header) & 0x0F) * 4);
-			//printf("IP size: %d bytes\n", ip_header_length);
 
+			// extract the length of the udp_data from the file
 			int length_udp_source = 2;
 			const u_char *udp_header = packet + ethernet_header_length + ip_header_length + (length_udp_source * 2);
 			const u_char *udp_header2 = udp_header + 1;
 			int udp_header_length = ((*udp_header) << 8) + (*udp_header2);
-			//printf("UDP size: %d bytes\n", udp_header_length);
 
+			// extract the length of the metadata from the file
 			int length_udp_info = (length_udp_source * 4); //num of bytes taken up to represent the length of UDP, the sources and checksum
 			const u_char *metadata_header = packet + ethernet_header_length + ip_header_length + length_udp_info;
 			int metadata_length = udp_header_length - length_udp_info;
-			//printf("Metadata size: %d bytes\n", udp_header_length);
 
+			// extract the metadata from the file and output it
 			printf("Metadata:\n");
-			fprintf(fp, "Metadata: \n");
+			fprintf(fp, "Metadata:\n");
 			if (metadata_length > 0) {
 		        const u_char *temp_pointer = metadata_header;
 		        int byte_count = 0;
@@ -236,7 +236,8 @@ class PCAP_Reader {
 				dataFormat = ntohs(ethernet->ether_type);
 				std::cout << "Data Format: " << std::hex << dataFormat << '\n';
 
-				printPacketMetadata(packet);
+				// extract the metadata and output it
+				printPacketMetadata();
 
 				// switching depending on the type of packet we have received (e.g. arista format)
 				switch(dataFormat) {
@@ -248,6 +249,7 @@ class PCAP_Reader {
 						break;
 				}
 
+				// run analysis on the timestamps to flag errors
 				timestampAnalysis(header->ts.tv_sec, header->ts.tv_usec);
 
 				printf("\n");
