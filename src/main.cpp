@@ -18,17 +18,27 @@ class PCAP_Reader {
 		// Opens a file to print to, this will be a csv file
 		FILE *fp;
 
+		std::ofstream csv;
+
+		std::string csvpath = "output.csv";
+
 		// This is the pointer that will hold the packet once we do pcap_next_ex
 		const u_char *packet;
 
 		// This will store the pcap header, which holds information pertinent to pcap
 		struct pcap_pkthdr *header;
 
+		u_int packetSeconds;
+		u_int packetNanoseconds;
+
 		u_long seconds;
 		u_long nanoseconds;
 
-		u_long previousSeconds;
-		u_long previousNanoseconds;
+		u_int rawSeconds;
+		u_int rawNanoseconds;
+
+		u_long preSeconds;
+		u_long preNanoseconds;
 
 		//Offset between TAI and UTC
 		const int TAI_UTC_OFFSET = getTaiToUtcOffset();
@@ -57,12 +67,12 @@ class PCAP_Reader {
 			timestampLength = ntohs(aristaTypes->subType);
 			timeFormat  = ntohs(aristaTypes->version);
 
-			previousSeconds = seconds;
-			previousNanoseconds = nanoseconds;
-
 			if (timestampLength == headerStructure::arista::sixtyFourBitCode) {
 				aristaTime64 = (headerStructure::arista::sniff_times_64*)(packet + headerStructure::arista::TIMES_POS);
-								
+
+				rawSeconds = aristaTime64->seconds;
+				rawNanoseconds = aristaTime64->nanoseconds;	
+
 				seconds = ntohl(aristaTime64->seconds);
 				nanoseconds = ntohl(aristaTime64->nanoseconds);
 
@@ -74,6 +84,9 @@ class PCAP_Reader {
 			} 
 			else {
 				aristaTime48 = (headerStructure::arista::sniff_times_48*)(packet + headerStructure::arista::TIMES_POS);
+
+				rawSeconds = aristaTime48->seconds;
+				rawNanoseconds = aristaTime48->nanoseconds;
 
 				seconds = ntohl(aristaTime48->seconds);
 				nanoseconds = ntohl(aristaTime48->nanoseconds);
@@ -89,126 +102,193 @@ class PCAP_Reader {
 
 		// timestamp analysis
 		//@author Cillian Fogarty
-		void timestampAnalysis(u_int epochSeconds, u_int epochNanoseconds) {
+		void timestampAnalysis() {
 
 			//Time Packet was captured at (UTC)
 			printf("UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
 			fprintf(fp, "UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
 
+			printf("Raw Timestamp: %x:%x\n", rawSeconds, rawNanoseconds);
+
 			// get offset between current and previous packet
-			long secondsFromPreviousPacket = seconds - previousSeconds;
-			long nanosecondsFromPreviousPacket = 0;
-			int packetsInOrder = 1;
+			long secondDelta = seconds - preSeconds;
+			long nanosecondDelta = 0;
+			bool arePacketsInOrder = true;
+
 			//ensures there has been a previous packet
-			if (previousSeconds != 0 && previousNanoseconds != 0) {
-				if (secondsFromPreviousPacket > 0  && nanoseconds < previousNanoseconds) {
+			if (preSeconds != 0 && preNanoseconds != 0) {
+				if (secondDelta > 0  && nanoseconds < preNanoseconds) {
 					// add 1 second in nanoseconds to current nanoseconds
-					nanosecondsFromPreviousPacket = (1000000000 + nanoseconds) - previousNanoseconds;
+					nanosecondDelta = (1000000000 + nanoseconds) - preNanoseconds;
+					secondDelta -= 1;
 				}
-				else if (secondsFromPreviousPacket < 0 && nanoseconds > previousNanoseconds) {
+				else if (secondDelta < 0 && nanoseconds > preNanoseconds) {
 					// add 1 second in nanoseconds to previous nanoseconds
-					nanosecondsFromPreviousPacket = nanoseconds - (1000000000 + previousNanoseconds);
-					packetsInOrder = 0;
+					nanosecondDelta = nanoseconds - (1000000000 + preNanoseconds);
+					secondDelta += 1;
+					arePacketsInOrder = false;
 				}
 				else
 				{
-					nanosecondsFromPreviousPacket = nanoseconds - previousNanoseconds;
+					nanosecondDelta = nanoseconds - preNanoseconds;
 				}
 			}
 			else {
-				secondsFromPreviousPacket = 0;
-				nanosecondsFromPreviousPacket = 0;
+				secondDelta = 0;
+				nanosecondDelta = 0;
 			}
-			printf("Offset from previous packet: %ld:%ld seconds\n", secondsFromPreviousPacket, nanosecondsFromPreviousPacket);
-			fprintf(fp, "Offset from previous packet: %ld:%ld seconds\n", secondsFromPreviousPacket, nanosecondsFromPreviousPacket);
 
-			// check packets arrived in the correct order
-			if (packetsInOrder == 1) {
-				printf("Packets are in order\n");
-				fprintf(fp, "Packets are in order\n");
+///////////// makes no sense why the ag tap is greater that the pcap time
+///////////// should be the other way around
+
+			// get offset between current packet and Aggregation Tap
+			long aggTapArrivalDeltaSeconds = seconds - packetSeconds;
+			long aggTapArrivalDeltaNanoseconds = 0;
+			bool areTimesConsistent = true;
+			if (aggTapArrivalDeltaSeconds > 0 && nanoseconds < packetNanoseconds) {
+				// add 1 second in nanoseconds to current nanoseconds
+				aggTapArrivalDeltaNanoseconds = (1000000000 + nanoseconds) - packetNanoseconds;
+				aggTapArrivalDeltaSeconds -= 1;
+			}
+			else if (aggTapArrivalDeltaSeconds < 0 && nanoseconds > packetNanoseconds) {
+				// add 1 second in nanoseconds to epoch nanoseconds
+				aggTapArrivalDeltaNanoseconds = nanoseconds - (1000000000 + packetNanoseconds);
+				aggTapArrivalDeltaSeconds += 1;
+				areTimesConsistent = false;
 			}
 			else {
+				aggTapArrivalDeltaNanoseconds = nanoseconds - packetNanoseconds;
+			}
+
+//////////////////////// printing
+			addToCSV(secondDelta, nanosecondDelta, aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
+
+			printf("Offset from previous packet: %ld:%ld seconds\n", secondDelta, nanosecondDelta);
+			fprintf(fp, "Offset from previous packet: %ld:%ld seconds\n", secondDelta, nanosecondDelta);
+
+			// check packets arrived in the correct order
+			if (arePacketsInOrder == true) {
+				printf("Packets are in order\n");
+				fprintf(fp, "Packets are in order\n");
+			} else {
 				printf("Packets are not in order\n");
 				fprintf(fp, "Packets are not in order\n");
 			}
 
-			// get offset between current packet and Aggregation Tap
-			long secondsFromAggregationTap = seconds - epochSeconds;
-			long nanosecondsFromAggregationTap = 0;
-			int timesConsistent = 1;
-			if (secondsFromAggregationTap > 0 && nanoseconds < epochNanoseconds) {
-				// add 1 second in nanoseconds to current nanoseconds
-				nanosecondsFromAggregationTap = (1000000000 + nanoseconds) - epochNanoseconds;
-			}
-			else if (secondsFromPreviousPacket < 0 && nanoseconds > epochNanoseconds) {
-				// add 1 second in nanoseconds to epoch nanoseconds
-				nanosecondsFromAggregationTap = nanoseconds - (1000000000 + epochNanoseconds);
-				timesConsistent = 0;
-			}
-			else {
-				nanosecondsFromAggregationTap = nanoseconds - epochNanoseconds;
-			}
-			printf("Offset from Aggregation Tap: %ld:%ld seconds\n", secondsFromAggregationTap, nanosecondsFromAggregationTap);
-			fprintf(fp, "Offset from Aggregation Tap: %ld:%ld seconds\n", secondsFromAggregationTap, nanosecondsFromAggregationTap);
+			printf("Offset from Aggregation Tap: %ld:%ld seconds\n", aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
+			fprintf(fp, "Offset from Aggregation Tap: %ld:%ld seconds\n", aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
 
 			// check packet time and Aggregation Tap time consistent
-			if (timesConsistent == 1) {
+			if (areTimesConsistent == true) {
 				printf("Packet time and Aggregation Tap time are consistent\n");
 				fprintf(fp, "Packet time and Aggregation Tap time are consistent\n");
-			}
-			else {
+			} else {
 				printf("Packet time and Aggregation Tap time are not consistent\n");
 				fprintf(fp, "Packet time and Aggregation Tap time are not consistent\n");
 			}
 		}
 
-		// extract and print the packet metadata
-		//@author Cillian Fogarty
-		void printPacketMetadata() {
+		// might need to change the vector type depending on what we pass in.
+		//vector<int> maybe do a vector<string> instead
+		// it looks messy but this seems to be the best way to do it in C++
+		void write_CSV(std::vector<std::pair<std::string, std::vector<int>>> dataset)
+		{
+			std::ofstream myFile(csvpath);
+			for(int j = 0; j < dataset.size(); ++j)
+    		{
+			// copy over column names
+       	 	myFile << dataset.at(j).first;
+        	if(j != dataset.size() - 1) myFile << ",";
+    		}
+			myFile << "\n";
 
-			// extract the length of the ip_data from the file
-			int ethernet_header_length = 32; //constant length in bytes
-			const u_char *ip_header = packet + ethernet_header_length;
-			u_int ip_header_length = (((*ip_header) & 0x0F) * 4);
+			for(int i = 0; i < dataset.at(0).second.size(); ++i)
+				{
+					for(int j = 0; j < dataset.size(); ++j)
+					{
+						myFile << dataset.at(j).second.at(i);
+						if(j != dataset.size() - 1) myFile << ",";
+					}
+					myFile << "\n";
+				}
+			myFile.close();
+		}
 
-			// extract the length of the udp_data from the file
-			int length_udp_source = 2;
-			const u_char *udp_header = packet + ethernet_header_length + ip_header_length + (length_udp_source * 2);
-			const u_char *udp_header2 = udp_header + 1;
-			int udp_header_length = ((*udp_header) << 8) + (*udp_header2);
+		void initializeCSV() {
+			csv << "Packet Timestamp, Raw Timestamp Metadata, Converted Timestamp Metadata, ";
+			csv << "Previous Packet Offset, Agg Tap and Packet Delta\n";
+		}
 
-			// extract the length of the metadata from the file
-			int length_udp_info = (length_udp_source * 4); //num of bytes taken up to represent the length of UDP, the sources and checksum
-			const u_char *metadata_header = packet + ethernet_header_length + ip_header_length + length_udp_info;
-			int metadata_length = udp_header_length - length_udp_info;
-
-			// extract the metadata from the file and output it
-			printf("Metadata:\n");
-			fprintf(fp, "Metadata:\n");
-			if (metadata_length > 0) {
-		        const u_char *temp_pointer = metadata_header;
-		        int byte_count = 0;
-		        while (byte_count++ < metadata_length) {
-		            printf("%02X ", *temp_pointer);
-		            fprintf(fp, "%02X ", *temp_pointer);
-		            temp_pointer++;
-		        }
-		        printf("\n");
-		        fprintf(fp, "\n");
-		    }
+		// Converting to a appending csv
+		void addToCSV(u_int interPacketOffset_s, u_int interPacketOffset_us, u_int aggTapArrivalDelta_s, u_int aggTapArrivalDelta_us) {
+			csv << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
+			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << "\n";
 		}
 
 
-		// pre-emptive creation of function to deal with csv things
-		void CSV() {
 
+		std::vector<std::pair<std::string, std::vector<int>>> read_csv(std::string filename){
+			// Reads a CSV file into a vector of <string, vector<int>> pairs where
+			// each pair represents <column name, column values>
+			// Create a vector of <string, int vector> pairs to store the result
+			std::vector<std::pair<std::string, std::vector<int>>> result;
+			// Create an input filestream
+			std::ifstream myFile(filename);
+			// Make sure the file is open
+			if(!myFile.is_open()) throw std::runtime_error("Could not open file");
+			// Helper vars
+			std::string line, colname;
+			int val;
+			// Read the column names
+			if(myFile.good())
+			{
+				// Extract the first line in the file
+				std::getline(myFile, line);
+				// Create a stringstream from line
+				std::stringstream ss(line);
+				// Extract each column name
+				while(std::getline(ss, colname, ','))
+				{
+					// Initialize and add <colname, int vector> pairs to result
+					result.push_back({colname, std::vector<int> {}});
+				}
+			}
+
+			// Read data, line by line
+			while(std::getline(myFile, line))
+			{
+				// Create a stringstream of the current line
+				std::stringstream ss(line);
+				
+				// Keep track of the current column index
+				int colIdx = 0;
+				
+				// Extract each integer
+				while(ss >> val){
+					
+					// Add the current integer to the 'colIdx' column's values vector
+					result.at(colIdx).second.push_back(val);
+					
+					// If the next token is a comma, ignore it and move on
+					if(ss.peek() == ',') ss.ignore();
+					
+					// Increment the column index
+					colIdx++;
+				}
+			}
+
+			// Close file
+			myFile.close();
+
+			return result;
 		}
 
 
 
 	public:
-		PCAP_Reader(): packetCount{0}, dataFormat{0}, fp{fopen("./out/result.txt", "w")}, TAI_UTC_OFFSET{getTaiToUtcOffset()}
+		PCAP_Reader(): packetCount{0}, dataFormat{0}, fp{fopen("./out/result.txt", "w")}, csv{"./out/output.csv"}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}
 		{
+			initializeCSV();
 		}
 
 		// takes in a pcap file, outputs certain data about the pcap itself, then figures out what format the packet is in, and sends it to the corresponding function
@@ -227,21 +307,21 @@ class PCAP_Reader {
 				if(header->len != header->caplen)
 					printf("Warning! Capture size different than packet size: %d bytes\n", header->len);
 
+				packetSeconds = header->ts.tv_sec;
+				packetNanoseconds = header->ts.tv_usec;
+
 				// printing out time that we captured the data
-				printf("Epoch Time: %ld:%ld seconds\n", header->ts.tv_sec, header->ts.tv_usec);
-				fprintf(fp, "Epoch Time: %ld:%ld seconds\n", header->ts.tv_sec, header->ts.tv_usec);
+				printf("Epoch Time: %i:%i seconds\n", packetSeconds, packetNanoseconds);
+				fprintf(fp, "Epoch Time: %i:%i seconds\n", packetSeconds, packetNanoseconds);
 
 				// putting data into the ethernet variable
 				ethernet = (headerStructure::sniff_ethernet*)(packet);
 				dataFormat = ntohs(ethernet->ether_type);
-				std::cout << "Data Format: " << std::hex << dataFormat << '\n';
-
-				// extract the metadata and output it
-				printPacketMetadata();
 
 				// switching depending on the type of packet we have received (e.g. arista format)
 				switch(dataFormat) {
 					case headerStructure::arista_code:
+						printf("Data Fromat: Arista Vendor Specific Protocol\n");
 						extractTimeAristaFormat();
 						break;
 					default:
@@ -250,15 +330,19 @@ class PCAP_Reader {
 				}
 
 				// run analysis on the timestamps to flag errors
-				timestampAnalysis(header->ts.tv_sec, header->ts.tv_usec);
+				timestampAnalysis();
 
 				printf("\n");
 				fprintf(fp, "\n");
+
+				preSeconds = seconds;
+				preNanoseconds = nanoseconds;
 			}
 		}
 
 		// deallocates memory after we have finished
 		void destroy() {
+		csv.close();
 		fclose(fp);
 	}
 };
