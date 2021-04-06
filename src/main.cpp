@@ -28,6 +28,10 @@ class PCAP_Reader {
 		const u_char *packet;
 		struct pcap_pkthdr *header;
 
+		// Packet header and data sizes
+		int vendorSize;
+		int payloadSize;
+
 		// forward declaration of variables that hold the different times
 		u_int packetSeconds;
 		u_int packetNanoseconds;
@@ -192,6 +196,7 @@ class PCAP_Reader {
 			}
 
 //////////////////////// printing
+			getPacketPayload();
 			addToCSV(secondDelta, nanosecondDelta, aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
 
 			printf("Offset from previous packet: %ld:%ld seconds\n", secondDelta, nanosecondDelta);
@@ -212,6 +217,40 @@ class PCAP_Reader {
 				printf("Packet time and Aggregation Tap time are not consistent\n");
 			}
 		}
+
+		// extract and print the packet metadata
+		//@author Cillian Fogarty
+		void getPacketPayload() {
+
+			// extract the length of the ip_data from the file
+			int ethernet_header_length = 32; //constant length in bytes
+			const u_char *ip_header = packet + ethernet_header_length;
+			u_int ip_header_length = (((*ip_header) & 0x0F) * 4);
+
+			// extract the length of the udp_data from the file
+			int length_udp_source = 2;
+			const u_char *udp_header = packet + ethernet_header_length + ip_header_length + (length_udp_source * 2);
+			const u_char *udp_header2 = udp_header + 1;
+			int udp_header_length = ((*udp_header) << 8) + (*udp_header2);
+
+			// extract the length of the metadata from the file
+			int length_udp_info = (length_udp_source * 4); //num of bytes taken up to represent the length of UDP, the sources and checksum
+			const u_char *metadata_header = packet + ethernet_header_length + ip_header_length + length_udp_info;
+			int metadata_length = udp_header_length - length_udp_info;
+
+			// extract the metadata from the file and output it
+			printf("Metadata:\n");
+			if (metadata_length > 0) {
+		        const u_char *temp_pointer = metadata_header;
+		        int byte_count = 0;
+		        while (byte_count++ < metadata_length) {
+		            printf("%02X ", *temp_pointer);
+		            temp_pointer++;
+		        }
+		        printf("\n");
+		    }
+		}
+
 
 		// output the first row as to display the what is in each column
 		void initializeCSV() {
@@ -259,10 +298,12 @@ class PCAP_Reader {
 				switch(dataFormat) {
 					case headerStructure::arista_code:
 						printf("Data Fromat: Arista Vendor Specific Protocol\n");
+						vendorSize = headerStructure::arista::TOTAL_SIZE;
 						extractTimeAristaFormat();
 						break;
 					case headerStructure::example_code:
 						printf("Data Format: Example Vendor\n");
+						vendorSize = headerStructure::exampleVendor::TOTAL_SIZE;
 						extractTimeExampleFormat();
 						break;
 					default:

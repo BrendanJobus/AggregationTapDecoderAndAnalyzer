@@ -35,7 +35,6 @@ namespace headerStructure {
 		example_code = 0x9999,
 	};
 
-	constexpr int ETHER_SIZE{14};
 	constexpr int ETHER_ADDR_LEN{6};
 	struct sniff_ethernet {
 		u_char ether_dhost[ETHER_ADDR_LEN];
@@ -43,15 +42,20 @@ namespace headerStructure {
 		u_short ether_type;
 	};
 
+	// Sizes of headers that are constant
+	constexpr int ETHER_SIZE{14};
 	constexpr int VIRTUAL_LAN_SIZE{4};
 	constexpr int IP_SIZE{20};
+	constexpr int UDP_SIZE{8};
 
 	// information related to arista timestamp header format
 	namespace arista {
-		// length in bytes of the arista types struct
+		// Size of the packet and other position information
+		constexpr int TOTAL_SIZE{14};
 		constexpr int TYPES_POS{ETHER_SIZE};
 		constexpr int TYPES_SIZE{4};
 		constexpr int TIMES_POS{TYPES_POS + TYPES_SIZE};
+		// Codes to identify timestamp formats
 		constexpr u_short taiCode{0x10};
 		constexpr u_short sixtyFourBitCode{0x1};
 
@@ -84,6 +88,7 @@ namespace headerStructure {
 	// and this format is that this one has its metadata header after the ip header and that the seconds
 	// will come after the nanoseconds ontop of a varying identifying code
 	namespace exampleVendor {
+		constexpr int TOTAL_SIZE{14};
 		constexpr int TYPES_POS{ETHER_SIZE + VIRTUAL_LAN_SIZE + IP_SIZE};
 		constexpr int TYPES_SIZE{4};
 		constexpr int TIMES_POS{TYPES_POS + TYPES_SIZE};
@@ -129,6 +134,9 @@ class PCAP_READER {
 		// pointers to the new packet and new packet header
 		const u_char *packet;
 		struct pcap_pkthdr *header;
+
+		// holds the size of the current packets propreitary header
+		int vendorSize;
 
 		// This is the pcap times
 		u_int packetSeconds;
