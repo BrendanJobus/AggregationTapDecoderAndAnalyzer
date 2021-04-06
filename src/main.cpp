@@ -5,18 +5,21 @@ class PCAP_Reader {
 	private:
 		// each struct corresponds to a number of bits in the packets memory, to find out what each means, look at the structs
 		const headerStructure::sniff_ethernet *ethernet;
+		// For packets of arista format
 		const headerStructure::arista::sniff_types *aristaTypes;
 		const headerStructure::arista::sniff_times_64 *aristaTime64;
 		const headerStructure::arista::sniff_times_48 *aristaTime48;
+		// For packet of example format
+		const headerStructure::exampleVendor::sniff_types *exTypes;
+		const headerStructure::exampleVendor::sniff_times_64 *exTime64;
+		const headerStructure::exampleVendor::sniff_times_48 *exTime48;
+
 
 		int packetCount;
 
 		u_short dataFormat;
 		u_short timestampLength;
 		u_short timeFormat;
-
-		// Opens a file to print to, this will be a csv file
-		FILE *fp;
 
 		std::ofstream csv;
 
@@ -78,7 +81,6 @@ class PCAP_Reader {
 
 				if(timeFormat == headerStructure::arista::taiCode) {
 					printf("Converted Timestamp from TAI to UTC\n");
-					fprintf(fp, "Converted Timestamp from TAI to UTC\n");
 					seconds = taiToUtc(seconds);
 				}
 			} 
@@ -93,7 +95,42 @@ class PCAP_Reader {
 
 				if(timeFormat == headerStructure::arista::taiCode) {
 					printf("Converted Timestamp from TAI to UTC\n");
-					fprintf(fp, "Converted Timestamp from TAI to UTC\n");
+					seconds = taiToUtc(seconds);
+				}
+			}
+		}
+
+		void extractTimeExampleFormat() {
+			exTypes = (headerStructure::exampleVendor::sniff_types*)(packet + headerStructure::exampleVendor::TYPES_POS);
+
+			timestampLength = ntohs(exTypes->subType);
+			timeFormat  = ntohs(exTypes->version);
+
+			if (timestampLength == headerStructure::exampleVendor::sixtyFourBitCode) {
+				exTime64 = (headerStructure::exampleVendor::sniff_times_64*)(packet + headerStructure::exampleVendor::TIMES_POS);
+
+				rawSeconds = exTime64->seconds;
+				rawNanoseconds = exTime64->nanoseconds;	
+
+				seconds = ntohl(exTime64->seconds);
+				nanoseconds = ntohl(exTime64->nanoseconds);
+
+				if(timeFormat == headerStructure::exampleVendor::taiCode) {
+					printf("Converted Timestamp from TAI to UTC\n");
+					seconds = taiToUtc(seconds);
+				}
+			} 
+			else {
+				exTime48 = (headerStructure::exampleVendor::sniff_times_48*)(packet + headerStructure::exampleVendor::TIMES_POS);
+
+				rawSeconds = exTime48->seconds;
+				rawNanoseconds = exTime48->nanoseconds;
+
+				seconds = ntohl(exTime48->seconds);
+				nanoseconds = ntohl(exTime48->nanoseconds);
+
+				if(timeFormat == headerStructure::exampleVendor::taiCode) {
+					printf("Converted Timestamp from TAI to UTC\n");
 					seconds = taiToUtc(seconds);
 				}
 			}
@@ -106,7 +143,6 @@ class PCAP_Reader {
 
 			//Time Packet was captured at (UTC)
 			printf("UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
-			fprintf(fp, "UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
 
 			printf("Raw Timestamp: %x:%x\n", rawSeconds, rawNanoseconds);
 
@@ -164,27 +200,21 @@ class PCAP_Reader {
 			addToCSV(secondDelta, nanosecondDelta, aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
 
 			printf("Offset from previous packet: %ld:%ld seconds\n", secondDelta, nanosecondDelta);
-			fprintf(fp, "Offset from previous packet: %ld:%ld seconds\n", secondDelta, nanosecondDelta);
 
 			// check packets arrived in the correct order
 			if (arePacketsInOrder == true) {
 				printf("Packets are in order\n");
-				fprintf(fp, "Packets are in order\n");
 			} else {
 				printf("Packets are not in order\n");
-				fprintf(fp, "Packets are not in order\n");
 			}
 
 			printf("Offset from Aggregation Tap: %ld:%ld seconds\n", aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
-			fprintf(fp, "Offset from Aggregation Tap: %ld:%ld seconds\n", aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
 
 			// check packet time and Aggregation Tap time consistent
 			if (areTimesConsistent == true) {
 				printf("Packet time and Aggregation Tap time are consistent\n");
-				fprintf(fp, "Packet time and Aggregation Tap time are consistent\n");
 			} else {
 				printf("Packet time and Aggregation Tap time are not consistent\n");
-				fprintf(fp, "Packet time and Aggregation Tap time are not consistent\n");
 			}
 		}
 
@@ -224,8 +254,6 @@ class PCAP_Reader {
 			csv << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
 			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << "\n";
 		}
-
-
 
 		std::vector<std::pair<std::string, std::vector<int>>> read_csv(std::string filename){
 			// Reads a CSV file into a vector of <string, vector<int>> pairs where
@@ -286,7 +314,7 @@ class PCAP_Reader {
 
 
 	public:
-		PCAP_Reader(): packetCount{0}, dataFormat{0}, fp{fopen("./out/result.txt", "w")}, csv{"./out/output.csv"}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}
+		PCAP_Reader(): packetCount{0}, dataFormat{0}, csv{"./out/output.csv"}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}
 		{
 			initializeCSV();
 		}
@@ -297,11 +325,9 @@ class PCAP_Reader {
 			while(pcap_next_ex(file, &header, &packet) >= 0) {
 				// printing the packet count
 				printf("Packet # %i\n", ++packetCount);
-				fprintf(fp, "Packet # %i\n", packetCount);
 
 				// printing the length of the data
 				printf("Packet size: %d bytes\n", header->len);
-				fprintf(fp, "Packet size: %d\n", header->len);
 
 				// making sure the captured length is the same as the data length
 				if(header->len != header->caplen)
@@ -312,7 +338,6 @@ class PCAP_Reader {
 
 				// printing out time that we captured the data
 				printf("Epoch Time: %i:%i seconds\n", packetSeconds, packetNanoseconds);
-				fprintf(fp, "Epoch Time: %i:%i seconds\n", packetSeconds, packetNanoseconds);
 
 				// putting data into the ethernet variable
 				ethernet = (headerStructure::sniff_ethernet*)(packet);
@@ -324,6 +349,10 @@ class PCAP_Reader {
 						printf("Data Fromat: Arista Vendor Specific Protocol\n");
 						extractTimeAristaFormat();
 						break;
+					case headerStructure::example_code:
+						printf("Data Format: Example Vendor\n");
+						extractTimeExampleFormat();
+						break;
 					default:
 						// either output an unkown format error, or just ignore, maybe do a warning instead of an error
 						break;
@@ -333,7 +362,6 @@ class PCAP_Reader {
 				timestampAnalysis();
 
 				printf("\n");
-				fprintf(fp, "\n");
 
 				preSeconds = seconds;
 				preNanoseconds = nanoseconds;
@@ -343,7 +371,6 @@ class PCAP_Reader {
 		// deallocates memory after we have finished
 		void destroy() {
 		csv.close();
-		fclose(fp);
 	}
 };
 
