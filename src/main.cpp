@@ -14,32 +14,27 @@ class PCAP_Reader {
 		const headerStructure::exampleVendor::sniff_times_64 *exTime64;
 		const headerStructure::exampleVendor::sniff_times_48 *exTime48;
 
-
 		int packetCount;
 
+		// variables for other packet data
 		u_short dataFormat;
 		u_short timestampLength;
 		u_short timeFormat;
 
+		// output stream
 		std::ofstream csv;
 
-		std::string csvpath = "output.csv";
-
-		// This is the pointer that will hold the packet once we do pcap_next_ex
+		// pointers for pcap_next_ex()
 		const u_char *packet;
-
-		// This will store the pcap header, which holds information pertinent to pcap
 		struct pcap_pkthdr *header;
 
+		// forward declaration of variables that hold the different times
 		u_int packetSeconds;
 		u_int packetNanoseconds;
-
 		u_long seconds;
 		u_long nanoseconds;
-
 		u_int rawSeconds;
 		u_int rawNanoseconds;
-
 		u_long preSeconds;
 		u_long preNanoseconds;
 
@@ -100,6 +95,7 @@ class PCAP_Reader {
 			}
 		}
 
+		// This function is exactly the same as the previous, only now its using the types from exampleVendor and is using the ex variables
 		void extractTimeExampleFormat() {
 			exTypes = (headerStructure::exampleVendor::sniff_types*)(packet + headerStructure::exampleVendor::TYPES_POS);
 
@@ -191,8 +187,7 @@ class PCAP_Reader {
 				aggTapArrivalDeltaNanoseconds = nanoseconds - (1000000000 + packetNanoseconds);
 				aggTapArrivalDeltaSeconds += 1;
 				areTimesConsistent = false;
-			}
-			else {
+			} else {
 				aggTapArrivalDeltaNanoseconds = nanoseconds - packetNanoseconds;
 			}
 
@@ -218,100 +213,17 @@ class PCAP_Reader {
 			}
 		}
 
-		// might need to change the vector type depending on what we pass in.
-		//vector<int> maybe do a vector<string> instead
-		// it looks messy but this seems to be the best way to do it in C++
-		void write_CSV(std::vector<std::pair<std::string, std::vector<int>>> dataset)
-		{
-			std::ofstream myFile(csvpath);
-			for(int j = 0; j < dataset.size(); ++j)
-    		{
-			// copy over column names
-       	 	myFile << dataset.at(j).first;
-        	if(j != dataset.size() - 1) myFile << ",";
-    		}
-			myFile << "\n";
-
-			for(int i = 0; i < dataset.at(0).second.size(); ++i)
-				{
-					for(int j = 0; j < dataset.size(); ++j)
-					{
-						myFile << dataset.at(j).second.at(i);
-						if(j != dataset.size() - 1) myFile << ",";
-					}
-					myFile << "\n";
-				}
-			myFile.close();
-		}
-
+		// output the first row as to display the what is in each column
 		void initializeCSV() {
 			csv << "Packet Timestamp, Raw Timestamp Metadata, Converted Timestamp Metadata, ";
 			csv << "Previous Packet Offset, Agg Tap and Packet Delta\n";
 		}
 
-		// Converting to a appending csv
+		// outputiing the data to the csv
 		void addToCSV(u_int interPacketOffset_s, u_int interPacketOffset_us, u_int aggTapArrivalDelta_s, u_int aggTapArrivalDelta_us) {
 			csv << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
 			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << "\n";
 		}
-
-		std::vector<std::pair<std::string, std::vector<int>>> read_csv(std::string filename){
-			// Reads a CSV file into a vector of <string, vector<int>> pairs where
-			// each pair represents <column name, column values>
-			// Create a vector of <string, int vector> pairs to store the result
-			std::vector<std::pair<std::string, std::vector<int>>> result;
-			// Create an input filestream
-			std::ifstream myFile(filename);
-			// Make sure the file is open
-			if(!myFile.is_open()) throw std::runtime_error("Could not open file");
-			// Helper vars
-			std::string line, colname;
-			int val;
-			// Read the column names
-			if(myFile.good())
-			{
-				// Extract the first line in the file
-				std::getline(myFile, line);
-				// Create a stringstream from line
-				std::stringstream ss(line);
-				// Extract each column name
-				while(std::getline(ss, colname, ','))
-				{
-					// Initialize and add <colname, int vector> pairs to result
-					result.push_back({colname, std::vector<int> {}});
-				}
-			}
-
-			// Read data, line by line
-			while(std::getline(myFile, line))
-			{
-				// Create a stringstream of the current line
-				std::stringstream ss(line);
-				
-				// Keep track of the current column index
-				int colIdx = 0;
-				
-				// Extract each integer
-				while(ss >> val){
-					
-					// Add the current integer to the 'colIdx' column's values vector
-					result.at(colIdx).second.push_back(val);
-					
-					// If the next token is a comma, ignore it and move on
-					if(ss.peek() == ',') ss.ignore();
-					
-					// Increment the column index
-					colIdx++;
-				}
-			}
-
-			// Close file
-			myFile.close();
-
-			return result;
-		}
-
-
 
 	public:
 		PCAP_Reader(): packetCount{0}, dataFormat{0}, csv{"./out/output.csv"}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}

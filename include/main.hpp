@@ -123,23 +123,26 @@ class PCAP_READER {
 		u_short timestampLength;
 		u_short timeFormat;
 
-		FILE *fp;
-
+		// output stream
 		std::ofstream csv;
 
+		// pointers to the new packet and new packet header
 		const u_char *packet;
-
 		struct pcap_pkthdr *header;
 
+		// This is the pcap times
 		u_int packetSeconds;
 		u_int packetNanoseconds;
 
+		// This is the converted metadata times
 		u_long seconds;
 		u_long nanoseconds;
 
+		// This is the raw metadata times that are still the wrong way around
 		u_int rawSeconds;
 		u_int rawNanoseconds;
 
+		// This is the previous metadata times
 		u_long preSeconds;
 		u_long preNanoseconds;
 
