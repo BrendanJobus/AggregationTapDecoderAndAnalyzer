@@ -5,42 +5,30 @@ class PCAP_Reader {
 	private:
 		// each struct corresponds to a number of bits in the packets memory, to find out what each means, look at the structs
 		const headerStructure::sniff_ethernet *ethernet;
-		// For packets of arista format
 		const headerStructure::arista::sniff_types *aristaTypes;
 		const headerStructure::arista::sniff_times_64 *aristaTime64;
 		const headerStructure::arista::sniff_times_48 *aristaTime48;
-		// For packet of example format
-		const headerStructure::exampleVendor::sniff_types *exTypes;
-		const headerStructure::exampleVendor::sniff_times_64 *exTime64;
-		const headerStructure::exampleVendor::sniff_times_48 *exTime48;
 
 		int packetCount;
 
-		// variables for other packet data
 		u_short dataFormat;
 		u_short timestampLength;
 		u_short timeFormat;
 
-		// output stream
-		std::ofstream csv;
+		// Opens a file to print to, this will be a csv file
+		FILE *fp;
 
-		// pointers for pcap_next_ex()
+		// This is the pointer that will hold the packet once we do pcap_next_ex
 		const u_char *packet;
+
+		// This will store the pcap header, which holds information pertinent to pcap
 		struct pcap_pkthdr *header;
 
-		// Packet header and data sizes
-		int vendorSize;
-		int payloadSize;
-
-		// forward declaration of variables that hold the different times
-		u_int packetSeconds;
-		u_int packetNanoseconds;
 		u_long seconds;
 		u_long nanoseconds;
-		u_int rawSeconds;
-		u_int rawNanoseconds;
-		u_long preSeconds;
-		u_long preNanoseconds;
+
+		u_long previousSeconds;
+		u_long previousNanoseconds;
 
 		//Offset between TAI and UTC
 		const int TAI_UTC_OFFSET = getTaiToUtcOffset();
@@ -69,68 +57,30 @@ class PCAP_Reader {
 			timestampLength = ntohs(aristaTypes->subType);
 			timeFormat  = ntohs(aristaTypes->version);
 
+			previousSeconds = seconds;
+			previousNanoseconds = nanoseconds;
+
 			if (timestampLength == headerStructure::arista::sixtyFourBitCode) {
 				aristaTime64 = (headerStructure::arista::sniff_times_64*)(packet + headerStructure::arista::TIMES_POS);
-
-				rawSeconds = aristaTime64->seconds;
-				rawNanoseconds = aristaTime64->nanoseconds;	
-
+								
 				seconds = ntohl(aristaTime64->seconds);
 				nanoseconds = ntohl(aristaTime64->nanoseconds);
 
 				if(timeFormat == headerStructure::arista::taiCode) {
 					printf("Converted Timestamp from TAI to UTC\n");
+					fprintf(fp, "Converted Timestamp from TAI to UTC\n");
 					seconds = taiToUtc(seconds);
 				}
 			} 
 			else {
 				aristaTime48 = (headerStructure::arista::sniff_times_48*)(packet + headerStructure::arista::TIMES_POS);
 
-				rawSeconds = aristaTime48->seconds;
-				rawNanoseconds = aristaTime48->nanoseconds;
-
 				seconds = ntohl(aristaTime48->seconds);
 				nanoseconds = ntohl(aristaTime48->nanoseconds);
 
 				if(timeFormat == headerStructure::arista::taiCode) {
 					printf("Converted Timestamp from TAI to UTC\n");
-					seconds = taiToUtc(seconds);
-				}
-			}
-		}
-
-		// This function is exactly the same as the previous, only now its using the types from exampleVendor and is using the ex variables
-		void extractTimeExampleFormat() {
-			exTypes = (headerStructure::exampleVendor::sniff_types*)(packet + headerStructure::exampleVendor::TYPES_POS);
-
-			timestampLength = ntohs(exTypes->subType);
-			timeFormat  = ntohs(exTypes->version);
-
-			if (timestampLength == headerStructure::exampleVendor::sixtyFourBitCode) {
-				exTime64 = (headerStructure::exampleVendor::sniff_times_64*)(packet + headerStructure::exampleVendor::TIMES_POS);
-
-				rawSeconds = exTime64->seconds;
-				rawNanoseconds = exTime64->nanoseconds;	
-
-				seconds = ntohl(exTime64->seconds);
-				nanoseconds = ntohl(exTime64->nanoseconds);
-
-				if(timeFormat == headerStructure::exampleVendor::taiCode) {
-					printf("Converted Timestamp from TAI to UTC\n");
-					seconds = taiToUtc(seconds);
-				}
-			} 
-			else {
-				exTime48 = (headerStructure::exampleVendor::sniff_times_48*)(packet + headerStructure::exampleVendor::TIMES_POS);
-
-				rawSeconds = exTime48->seconds;
-				rawNanoseconds = exTime48->nanoseconds;
-
-				seconds = ntohl(exTime48->seconds);
-				nanoseconds = ntohl(exTime48->nanoseconds);
-
-				if(timeFormat == headerStructure::exampleVendor::taiCode) {
-					printf("Converted Timestamp from TAI to UTC\n");
+					fprintf(fp, "Converted Timestamp from TAI to UTC\n");
 					seconds = taiToUtc(seconds);
 				}
 			}
@@ -139,88 +89,82 @@ class PCAP_Reader {
 
 		// timestamp analysis
 		//@author Cillian Fogarty
-		void timestampAnalysis() {
+		void timestampAnalysis(u_int epochSeconds, u_int epochNanoseconds) {
 
 			//Time Packet was captured at (UTC)
 			printf("UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
-
-			printf("Raw Timestamp: %x:%x\n", rawSeconds, rawNanoseconds);
+			fprintf(fp, "UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
 
 			// get offset between current and previous packet
-			long secondDelta = seconds - preSeconds;
-			long nanosecondDelta = 0;
-			bool arePacketsInOrder = true;
-
+			long secondsFromPreviousPacket = seconds - previousSeconds;
+			long nanosecondsFromPreviousPacket = 0;
+			int packetsInOrder = 1;
 			//ensures there has been a previous packet
-			if (preSeconds != 0 && preNanoseconds != 0) {
-				if (secondDelta > 0  && nanoseconds < preNanoseconds) {
+			if (previousSeconds != 0 && previousNanoseconds != 0) {
+				if (secondsFromPreviousPacket > 0  && nanoseconds < previousNanoseconds) {
 					// add 1 second in nanoseconds to current nanoseconds
-					nanosecondDelta = (1000000000 + nanoseconds) - preNanoseconds;
-					secondDelta -= 1;
+					nanosecondsFromPreviousPacket = (1000000000 + nanoseconds) - previousNanoseconds;
 				}
-				else if (secondDelta < 0 && nanoseconds > preNanoseconds) {
+				else if (secondsFromPreviousPacket < 0 && nanoseconds > previousNanoseconds) {
 					// add 1 second in nanoseconds to previous nanoseconds
-					nanosecondDelta = nanoseconds - (1000000000 + preNanoseconds);
-					secondDelta += 1;
-					arePacketsInOrder = false;
+					nanosecondsFromPreviousPacket = nanoseconds - (1000000000 + previousNanoseconds);
+					packetsInOrder = 0;
 				}
 				else
 				{
-					nanosecondDelta = nanoseconds - preNanoseconds;
+					nanosecondsFromPreviousPacket = nanoseconds - previousNanoseconds;
 				}
 			}
 			else {
-				secondDelta = 0;
-				nanosecondDelta = 0;
+				secondsFromPreviousPacket = 0;
+				nanosecondsFromPreviousPacket = 0;
 			}
-
-///////////// makes no sense why the ag tap is greater that the pcap time
-///////////// should be the other way around
-
-			// get offset between current packet and Aggregation Tap
-			long aggTapArrivalDeltaSeconds = seconds - packetSeconds;
-			long aggTapArrivalDeltaNanoseconds = 0;
-			bool areTimesConsistent = true;
-			if (aggTapArrivalDeltaSeconds > 0 && nanoseconds < packetNanoseconds) {
-				// add 1 second in nanoseconds to current nanoseconds
-				aggTapArrivalDeltaNanoseconds = (1000000000 + nanoseconds) - packetNanoseconds;
-				aggTapArrivalDeltaSeconds -= 1;
-			}
-			else if (aggTapArrivalDeltaSeconds < 0 && nanoseconds > packetNanoseconds) {
-				// add 1 second in nanoseconds to epoch nanoseconds
-				aggTapArrivalDeltaNanoseconds = nanoseconds - (1000000000 + packetNanoseconds);
-				aggTapArrivalDeltaSeconds += 1;
-				areTimesConsistent = false;
-			} else {
-				aggTapArrivalDeltaNanoseconds = nanoseconds - packetNanoseconds;
-			}
-
-//////////////////////// printing
-			getPacketPayload();
-			addToCSV(secondDelta, nanosecondDelta, aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
-
-			printf("Offset from previous packet: %ld:%ld seconds\n", secondDelta, nanosecondDelta);
+			printf("Offset from previous packet: %ld:%ld seconds\n", secondsFromPreviousPacket, nanosecondsFromPreviousPacket);
+			fprintf(fp, "Offset from previous packet: %ld:%ld seconds\n", secondsFromPreviousPacket, nanosecondsFromPreviousPacket);
 
 			// check packets arrived in the correct order
-			if (arePacketsInOrder == true) {
+			if (packetsInOrder == 1) {
 				printf("Packets are in order\n");
-			} else {
+				fprintf(fp, "Packets are in order\n");
+			}
+			else {
 				printf("Packets are not in order\n");
+				fprintf(fp, "Packets are not in order\n");
 			}
 
-			printf("Offset from Aggregation Tap: %ld:%ld seconds\n", aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
+			// get offset between current packet and Aggregation Tap
+			long secondsFromAggregationTap = seconds - epochSeconds;
+			long nanosecondsFromAggregationTap = 0;
+			int timesConsistent = 1;
+			if (secondsFromAggregationTap > 0 && nanoseconds < epochNanoseconds) {
+				// add 1 second in nanoseconds to current nanoseconds
+				nanosecondsFromAggregationTap = (1000000000 + nanoseconds) - epochNanoseconds;
+			}
+			else if (secondsFromPreviousPacket < 0 && nanoseconds > epochNanoseconds) {
+				// add 1 second in nanoseconds to epoch nanoseconds
+				nanosecondsFromAggregationTap = nanoseconds - (1000000000 + epochNanoseconds);
+				timesConsistent = 0;
+			}
+			else {
+				nanosecondsFromAggregationTap = nanoseconds - epochNanoseconds;
+			}
+			printf("Offset from Aggregation Tap: %ld:%ld seconds\n", secondsFromAggregationTap, nanosecondsFromAggregationTap);
+			fprintf(fp, "Offset from Aggregation Tap: %ld:%ld seconds\n", secondsFromAggregationTap, nanosecondsFromAggregationTap);
 
 			// check packet time and Aggregation Tap time consistent
-			if (areTimesConsistent == true) {
+			if (timesConsistent == 1) {
 				printf("Packet time and Aggregation Tap time are consistent\n");
-			} else {
+				fprintf(fp, "Packet time and Aggregation Tap time are consistent\n");
+			}
+			else {
 				printf("Packet time and Aggregation Tap time are not consistent\n");
+				fprintf(fp, "Packet time and Aggregation Tap time are not consistent\n");
 			}
 		}
 
 		// extract and print the packet metadata
 		//@author Cillian Fogarty
-		void getPacketPayload() {
+		void printPacketMetadata() {
 
 			// extract the length of the ip_data from the file
 			int ethernet_header_length = 32; //constant length in bytes
@@ -240,34 +184,31 @@ class PCAP_Reader {
 
 			// extract the metadata from the file and output it
 			printf("Metadata:\n");
+			fprintf(fp, "Metadata:\n");
 			if (metadata_length > 0) {
 		        const u_char *temp_pointer = metadata_header;
 		        int byte_count = 0;
 		        while (byte_count++ < metadata_length) {
 		            printf("%02X ", *temp_pointer);
+		            fprintf(fp, "%02X ", *temp_pointer);
 		            temp_pointer++;
 		        }
 		        printf("\n");
+		        fprintf(fp, "\n");
 		    }
 		}
 
 
-		// output the first row as to display the what is in each column
-		void initializeCSV() {
-			csv << "Packet Timestamp, Raw Timestamp Metadata, Converted Timestamp Metadata, ";
-			csv << "Previous Packet Offset, Agg Tap and Packet Delta\n";
+		// pre-emptive creation of function to deal with csv things
+		void CSV() {
+
 		}
 
-		// outputiing the data to the csv
-		void addToCSV(u_int interPacketOffset_s, u_int interPacketOffset_us, u_int aggTapArrivalDelta_s, u_int aggTapArrivalDelta_us) {
-			csv << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
-			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << "\n";
-		}
+
 
 	public:
-		PCAP_Reader(): packetCount{0}, dataFormat{0}, csv{"./out/output.csv"}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}
+		PCAP_Reader(): packetCount{0}, dataFormat{0}, fp{fopen("./result.txt", "w")}, TAI_UTC_OFFSET{getTaiToUtcOffset()}
 		{
-			initializeCSV();
 		}
 
 		// takes in a pcap file, outputs certain data about the pcap itself, then figures out what format the packet is in, and sends it to the corresponding function
@@ -276,35 +217,32 @@ class PCAP_Reader {
 			while(pcap_next_ex(file, &header, &packet) >= 0) {
 				// printing the packet count
 				printf("Packet # %i\n", ++packetCount);
+				fprintf(fp, "Packet # %i\n", packetCount);
 
 				// printing the length of the data
 				printf("Packet size: %d bytes\n", header->len);
+				fprintf(fp, "Packet size: %d\n", header->len);
 
 				// making sure the captured length is the same as the data length
 				if(header->len != header->caplen)
 					printf("Warning! Capture size different than packet size: %d bytes\n", header->len);
 
-				packetSeconds = header->ts.tv_sec;
-				packetNanoseconds = header->ts.tv_usec;
-
 				// printing out time that we captured the data
-				printf("Epoch Time: %i:%i seconds\n", packetSeconds, packetNanoseconds);
+				printf("Epoch Time: %ld:%ld seconds\n", header->ts.tv_sec, header->ts.tv_usec);
+				fprintf(fp, "Epoch Time: %ld:%ld seconds\n", header->ts.tv_sec, header->ts.tv_usec);
 
 				// putting data into the ethernet variable
 				ethernet = (headerStructure::sniff_ethernet*)(packet);
 				dataFormat = ntohs(ethernet->ether_type);
+				std::cout << "Data Format: " << std::hex << dataFormat << '\n';
+
+				// extract the metadata and output it
+				printPacketMetadata();
 
 				// switching depending on the type of packet we have received (e.g. arista format)
 				switch(dataFormat) {
 					case headerStructure::arista_code:
-						printf("Data Fromat: Arista Vendor Specific Protocol\n");
-						vendorSize = headerStructure::arista::TOTAL_SIZE;
 						extractTimeAristaFormat();
-						break;
-					case headerStructure::example_code:
-						printf("Data Format: Example Vendor\n");
-						vendorSize = headerStructure::exampleVendor::TOTAL_SIZE;
-						extractTimeExampleFormat();
 						break;
 					default:
 						// either output an unkown format error, or just ignore, maybe do a warning instead of an error
@@ -312,18 +250,16 @@ class PCAP_Reader {
 				}
 
 				// run analysis on the timestamps to flag errors
-				timestampAnalysis();
+				timestampAnalysis(header->ts.tv_sec, header->ts.tv_usec);
 
 				printf("\n");
-
-				preSeconds = seconds;
-				preNanoseconds = nanoseconds;
+				fprintf(fp, "\n");
 			}
 		}
 
 		// deallocates memory after we have finished
 		void destroy() {
-		csv.close();
+		fclose(fp);
 	}
 };
 

@@ -1,11 +1,11 @@
 default: build
 
 build: clean
-	g++ -Wall -o ./bin/test ./src/main.cpp -lpcap
+	g++ -Wall -std=c++2a -o ./bin/test ./src/main.cpp -lpcap
 
 run: clean
-	g++ -Wall -o ./bin/test ./src/main.cpp -lpcap
-	./bin/test
+	g++ -Wall -std=c++2a -o ./bin/test ./src/main.cpp -lpcap
+	./bin/test $(filter-out $@,$(MAKECMDGOALS))
 
 clean:
 	rm -rf ./bin/test
