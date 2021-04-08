@@ -42,6 +42,9 @@ class PCAP_Reader {
 		u_long preSeconds;
 		u_long preNanoseconds;
 
+		int sec_adjust;
+		int nanosec_adjust;
+
 		//Offset between TAI and UTC
 		const int TAI_UTC_OFFSET = getTaiToUtcOffset();
 
@@ -75,8 +78,8 @@ class PCAP_Reader {
 				rawSeconds = aristaTime64->seconds;
 				rawNanoseconds = aristaTime64->nanoseconds;	
 
-				seconds = ntohl(aristaTime64->seconds);
-				nanoseconds = ntohl(aristaTime64->nanoseconds);
+				seconds = ntohl(aristaTime64->seconds) + sec_adjust;
+				nanoseconds = ntohl(aristaTime64->seconds) + nanosec_adjust;
 
 				if(timeFormat == headerStructure::arista::taiCode) {
 					printf("Converted Timestamp from TAI to UTC\n");
@@ -89,8 +92,8 @@ class PCAP_Reader {
 				rawSeconds = aristaTime48->seconds;
 				rawNanoseconds = aristaTime48->nanoseconds;
 
-				seconds = ntohl(aristaTime48->seconds);
-				nanoseconds = ntohl(aristaTime48->nanoseconds);
+				seconds = ntohl(aristaTime48->seconds) + sec_adjust;
+				nanoseconds = ntohl(aristaTime48->nanoseconds) + nanosec_adjust;
 
 				if(timeFormat == headerStructure::arista::taiCode) {
 					printf("Converted Timestamp from TAI to UTC\n");
@@ -112,8 +115,8 @@ class PCAP_Reader {
 				rawSeconds = exTime64->seconds;
 				rawNanoseconds = exTime64->nanoseconds;	
 
-				seconds = ntohl(exTime64->seconds);
-				nanoseconds = ntohl(exTime64->nanoseconds);
+				seconds = ntohl(exTime64->seconds) + sec_adjust;
+				nanoseconds = ntohl(exTime64->nanoseconds) + nanosec_adjust;
 
 				if(timeFormat == headerStructure::exampleVendor::taiCode) {
 					printf("Converted Timestamp from TAI to UTC\n");
@@ -126,8 +129,8 @@ class PCAP_Reader {
 				rawSeconds = exTime48->seconds;
 				rawNanoseconds = exTime48->nanoseconds;
 
-				seconds = ntohl(exTime48->seconds);
-				nanoseconds = ntohl(exTime48->nanoseconds);
+				seconds = ntohl(exTime48->seconds) + sec_adjust;
+				nanoseconds = ntohl(exTime48->nanoseconds) + nanosec_adjust;
 
 				if(timeFormat == headerStructure::exampleVendor::taiCode) {
 					printf("Converted Timestamp from TAI to UTC\n");
@@ -268,6 +271,8 @@ class PCAP_Reader {
 		PCAP_Reader(): packetCount{0}, dataFormat{0}, csv{"./out/output.csv"}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}
 		{
 			initializeCSV();
+			sec_adjust = 0;
+			nanosec_adjust = 0;
 		}
 
 		// takes in a pcap file, outputs certain data about the pcap itself, then figures out what format the packet is in, and sends it to the corresponding function
@@ -325,6 +330,15 @@ class PCAP_Reader {
 		void destroy() {
 		csv.close();
 	}
+
+	void adjustNanoseconds(int adj) {
+		nanosec_adjust += adj;
+	}
+
+	void adjustSeconds(int adj) {
+		sec_adjust += adj;
+	}
+
 };
 
 int main(int argc, char **argv) {   
@@ -333,14 +347,27 @@ int main(int argc, char **argv) {
 	// This is the buffer that pcap uses to output the error into
 	char errbuff[PCAP_ERRBUF_SIZE];
 
-	if(argc > 1) { // if arguments are specified, run those files
+	std::string arg = argv[argc - 2];
+
+	if (arg == "-ns-adjust") {
+		 r.adjustNanoseconds( std::stoi( argv[argc - 1] ) );
+	}
+	else if (arg == "-s-adjust") {
+		r.adjustSeconds( std::stoi( argv[argc - 1] ) );
+	}
+
+	if (argc > 1) { // if arguments are specified, run those files	
 		for(int i{1}; i < argc; i++){
+			
 			std::cout << argv[i] << '\n';
 			// Opening the pcap file in memory, pcap_t will point to the start of the file
 			pcap_t *file = pcap_open_offline(argv[i], errbuff);
 
-			r.workOnPCAPs(file);
+			if (file != NULL) { 
+				r.workOnPCAPs(file); 
+			} // error code for unknown pcap file or input		
 		}
+
 	} else {
 		DIR *dir;
 		struct dirent *diread;

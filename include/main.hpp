@@ -15,7 +15,7 @@
 #include <arpa/inet.h>
 
 
-// These are the headers we are definitley using right now
+// These are the headers we are definitely using right now
 #include <pcap.h>
 #include <dirent.h>
 #include <unordered_map>
@@ -123,6 +123,9 @@ class PCAP_READER {
 		const headerStructure::exampleVendor::sniff_times_48 *exTime48;
 
 		int packetCount;
+
+		int sec_adjust;
+		double nanosec_adjust;
 
 		u_short data_format;
 		u_short timestampLength;
