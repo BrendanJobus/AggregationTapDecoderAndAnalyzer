@@ -153,7 +153,7 @@ class PCAP_READER {
 		void getPacketAndPrintPayload();
 
 		void initializeCSV();
-		void addToCSV(u_int, u_int, u_int, u_int);
+		void addToCSV(long, long, long, long);
 
 	public:
 		PCAP_READER();

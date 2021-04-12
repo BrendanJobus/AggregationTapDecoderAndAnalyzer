@@ -3,6 +3,11 @@
 // Put into a class primarily for increased readability and portability
 class PCAP_Reader {
 	private:
+		enum error_codes {
+			packet_before_aggTap = 1,
+			aggTap_behind_previous = 10,
+		};
+
 		// each struct corresponds to a number of bits in the packets memory, to find out what each means, look at the structs
 		const headerStructure::sniff_ethernet *ethernet;
 		// For packets of arista format
@@ -137,10 +142,11 @@ class PCAP_Reader {
 		}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+		long errorCode;
 		// timestamp analysis
 		//@author Cillian Fogarty
 		void timestampAnalysis() {
-
+			errorCode = 0;
 			//Time Packet was captured at (UTC)
 			printf("UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
 
@@ -153,19 +159,28 @@ class PCAP_Reader {
 
 			//ensures there has been a previous packet
 			if (preSeconds != 0 && preNanoseconds != 0) {
+				// case: the seconds are ahead, but the nanoseconds are behind
 				if (secondDelta > 0  && nanoseconds < preNanoseconds) {
 					// add 1 second in nanoseconds to current nanoseconds
 					nanosecondDelta = (1000000000 + nanoseconds) - preNanoseconds;
 					secondDelta -= 1;
 				}
+				// case: the seconds are behind, but the nanoseconds are ahead
 				else if (secondDelta < 0 && nanoseconds > preNanoseconds) {
 					// add 1 second in nanoseconds to previous nanoseconds
 					nanosecondDelta = nanoseconds - (1000000000 + preNanoseconds);
 					secondDelta += 1;
 					arePacketsInOrder = false;
+					errorCode = aggTap_behind_previous;
 				}
-				else
-				{
+				// case: both are behind
+				else if (secondDelta < 0 && nanoseconds < preNanoseconds) {
+					nanosecondDelta = nanoseconds - preNanoseconds;
+					arePacketsInOrder = false;
+					errorCode = aggTap_behind_previous;
+				}
+				// case: both are ahead
+				else {
 					nanosecondDelta = nanoseconds - preNanoseconds;
 				}
 			}
@@ -178,25 +193,36 @@ class PCAP_Reader {
 ///////////// should be the other way around
 
 			// get offset between current packet and Aggregation Tap
-			long aggTapArrivalDeltaSeconds = seconds - packetSeconds;
-			long aggTapArrivalDeltaNanoseconds = 0;
+			long aggTapArrivalDelta_s = packetSeconds - seconds;
+			long aggTapArrivalDelta_us = 0;
 			bool areTimesConsistent = true;
-			if (aggTapArrivalDeltaSeconds > 0 && nanoseconds < packetNanoseconds) {
+			// case: the seconds are ahead, but the nanoseconds are behind
+			if (aggTapArrivalDelta_s > 0 && packetNanoseconds < nanoseconds) {
 				// add 1 second in nanoseconds to current nanoseconds
-				aggTapArrivalDeltaNanoseconds = (1000000000 + nanoseconds) - packetNanoseconds;
-				aggTapArrivalDeltaSeconds -= 1;
+				aggTapArrivalDelta_us = (1000000000 + packetNanoseconds) - nanoseconds;
+				aggTapArrivalDelta_s -= 1;
 			}
-			else if (aggTapArrivalDeltaSeconds < 0 && nanoseconds > packetNanoseconds) {
+			// case: the seconds are behind, but the nanoseconds are ahead
+			else if (aggTapArrivalDelta_s <= 0 && packetNanoseconds > nanoseconds) {
 				// add 1 second in nanoseconds to epoch nanoseconds
-				aggTapArrivalDeltaNanoseconds = nanoseconds - (1000000000 + packetNanoseconds);
-				aggTapArrivalDeltaSeconds += 1;
+				aggTapArrivalDelta_us = packetNanoseconds - (1000000000 + nanoseconds);
+				aggTapArrivalDelta_s += 1;
 				areTimesConsistent = false;
-			} else {
-				aggTapArrivalDeltaNanoseconds = nanoseconds - packetNanoseconds;
+				errorCode |= packet_before_aggTap;
+			} 
+			// case: both are behind
+			else if (aggTapArrivalDelta_s <=0 && packetNanoseconds < nanoseconds) {
+				aggTapArrivalDelta_us = packetNanoseconds - nanoseconds;
+				areTimesConsistent = false;
+				errorCode |= packet_before_aggTap;
+			}
+			// case: both are ahead
+			else {
+				aggTapArrivalDelta_us = packetNanoseconds - nanoseconds;
 			}
 
 //////////////////////// printing
-			addToCSV(secondDelta, nanosecondDelta, aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
+			addToCSV(secondDelta, nanosecondDelta, aggTapArrivalDelta_s, aggTapArrivalDelta_us);
 
 			printf("Offset from previous packet: %ld:%ld seconds\n", secondDelta, nanosecondDelta);
 
@@ -207,7 +233,7 @@ class PCAP_Reader {
 				printf("Packets are not in order\n");
 			}
 
-			printf("Offset from Aggregation Tap: %ld:%ld seconds\n", aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
+			printf("Offset from Aggregation Tap: %ld:%ld seconds\n", aggTapArrivalDelta_s, aggTapArrivalDelta_us);
 
 			// check packet time and Aggregation Tap time consistent
 			if (areTimesConsistent == true) {
@@ -261,13 +287,13 @@ class PCAP_Reader {
 		// output the first row as to display the what is in each column
 		void initializeCSV() {
 			csv << "Packet Timestamp, Raw Timestamp Metadata, Converted Timestamp Metadata, ";
-			csv << "Previous Packet Offset, Agg Tap and Packet Delta\n";
+			csv << "Previous Packet Offset, Agg Tap and Packet Delta, Error Code\n";
 		}
 
-		// outputiing the data to the csv
-		void addToCSV(u_int interPacketOffset_s, u_int interPacketOffset_us, u_int aggTapArrivalDelta_s, u_int aggTapArrivalDelta_us) {
+		// outputing the data to the csv
+		void addToCSV(long interPacketOffset_s, long interPacketOffset_us, long aggTapArrivalDelta_s, long aggTapArrivalDelta_us) {
 			csv << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
-			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us;
+			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << ", " << errorCode;
 
 			// Place printing of payload here
 			getPacketAndPrintPayload();
@@ -276,7 +302,7 @@ class PCAP_Reader {
 		}
 
 	public:
-		PCAP_Reader(): packetCount{0}, dataFormat{0}, csv{"./out/output.csv"}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}
+		PCAP_Reader(): packetCount{0}, dataFormat{0}, csv{"./out/output.csv"}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}, errorCode{0}
 		{
 			initializeCSV();
 		}
