@@ -196,7 +196,6 @@ class PCAP_Reader {
 			}
 
 //////////////////////// printing
-			getPacketPayload();
 			addToCSV(secondDelta, nanosecondDelta, aggTapArrivalDeltaSeconds, aggTapArrivalDeltaNanoseconds);
 
 			printf("Offset from previous packet: %ld:%ld seconds\n", secondDelta, nanosecondDelta);
@@ -220,7 +219,7 @@ class PCAP_Reader {
 
 		// extract and print the packet metadata
 		//@author Cillian Fogarty
-		void getPacketPayload() {
+		void getPacketAndPrintPayload() {
 
 			// extract the length of the ip_data from the file
 			int ethernet_header_length = 32; //constant length in bytes
@@ -247,10 +246,17 @@ class PCAP_Reader {
 		            printf("%02X ", *temp_pointer);
 		            temp_pointer++;
 		        }
+
+				//byte_count = 0;
+				//csv << std::hex;
+				//while (byte_count++ < metadata_length) {
+				//	csv << *temp_pointer;
+				//	temp_pointer++;
+				//}
+				//csv << std::dec;
 		        printf("\n");
 		    }
 		}
-
 
 		// output the first row as to display the what is in each column
 		void initializeCSV() {
@@ -261,7 +267,12 @@ class PCAP_Reader {
 		// outputiing the data to the csv
 		void addToCSV(u_int interPacketOffset_s, u_int interPacketOffset_us, u_int aggTapArrivalDelta_s, u_int aggTapArrivalDelta_us) {
 			csv << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
-			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << "\n";
+			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us;
+
+			// Place printing of payload here
+			getPacketAndPrintPayload();
+
+			csv << "\n";
 		}
 
 	public:
@@ -272,6 +283,8 @@ class PCAP_Reader {
 
 		// takes in a pcap file, outputs certain data about the pcap itself, then figures out what format the packet is in, and sends it to the corresponding function
 		void workOnPCAPs(pcap_t *file) {
+			preSeconds = 0;
+			preNanoseconds = 0;
 			// pcap_next_ex returns a 1 so long as every thing is ok, so keep looping until its not 1
 			while(pcap_next_ex(file, &header, &packet) >= 0) {
 				// printing the packet count
@@ -319,6 +332,20 @@ class PCAP_Reader {
 				preSeconds = seconds;
 				preNanoseconds = nanoseconds;
 			}
+			csv.close();
+			csv.open("./out/output.csv");
+		}
+
+		// takes in a the filename of the pcap input file and sets the csv output file to be a .csv file with the same name as the input file but in the ./out/ folder
+		void setOutputFile(std::string inputFilename) {
+			std::string outputFile;
+			outputFile = inputFilename.substr(inputFilename.rfind("/") + 1);
+			outputFile.erase(outputFile.rfind(".pcap"), 5);
+			outputFile.insert(0, "out/");
+			outputFile += ".csv";
+			csv.close();
+			csv.open(outputFile);
+			initializeCSV();
 		}
 
 		// deallocates memory after we have finished
@@ -338,7 +365,7 @@ int main(int argc, char **argv) {
 			std::cout << argv[i] << '\n';
 			// Opening the pcap file in memory, pcap_t will point to the start of the file
 			pcap_t *file = pcap_open_offline(argv[i], errbuff);
-
+			r.setOutputFile(argv[i]);
 			r.workOnPCAPs(file);
 		}
 	} else {
@@ -352,8 +379,9 @@ int main(int argc, char **argv) {
 				str.insert(0, directory);
 				if(str.find(".pcap") != std::string::npos) {
 					pcap_t *file = pcap_open_offline(str.c_str(), errbuff);
+					r.setOutputFile(str);
 					r.workOnPCAPs(file);
-				} 
+				}
 			}
 			closedir(dir);
 		}

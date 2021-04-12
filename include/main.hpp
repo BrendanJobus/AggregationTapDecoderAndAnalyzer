@@ -1,25 +1,11 @@
 #pragma once
 
-#include <iostream>
-#include <vector>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <net/if.h>
-#include <netinet/tcp.h>
-#include <netinet/udp.h>
-#include <arpa/inet.h>
-
-
 // These are the headers we are definitley using right now
 #include <pcap.h>
 #include <dirent.h>
 #include <unordered_map>
 #include <chrono>
+#include <iostream>
 
 //for file shenanigans
 #include <string>
@@ -137,6 +123,7 @@ class PCAP_READER {
 
 		// holds the size of the current packets propreitary header
 		int vendorSize;
+		int payloadSize;
 
 		// This is the pcap times
 		u_int packetSeconds;
@@ -163,6 +150,7 @@ class PCAP_READER {
 		void extractTimeExampleFormat();
 
 		void timestampAnalysis();
+		void getPacketAndPrintPayload();
 
 		void initializeCSV();
 		void addToCSV(u_int, u_int, u_int, u_int);
@@ -171,6 +159,8 @@ class PCAP_READER {
 		PCAP_READER();
 
 		void workOnPCAPs(pcap_t *);
+
+		void setOutputFile(std::string);
 
 		void destroy();
 };
