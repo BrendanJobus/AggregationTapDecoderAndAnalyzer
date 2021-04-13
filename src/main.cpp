@@ -264,22 +264,17 @@ class PCAP_Reader {
 			int metadata_length = udp_header_length - length_udp_info;
 
 			// extract the metadata from the file and output it
-			printf("Metadata:\n");
+			printf("Payload:\n");
 			if (metadata_length > 0) {
 		        const u_char *temp_pointer = metadata_header;
 		        int byte_count = 0;
+		        char payload[4];
 		        while (byte_count++ < metadata_length) {
-		            printf("%02X ", *temp_pointer);
+					sprintf(payload, "%02X ", *temp_pointer);
+					printf("%s", payload);
+					csv << payload;
 		            temp_pointer++;
 		        }
-
-				//byte_count = 0;
-				//csv << std::hex;
-				//while (byte_count++ < metadata_length) {
-				//	csv << *temp_pointer;
-				//	temp_pointer++;
-				//}
-				//csv << std::dec;
 		        printf("\n");
 		    }
 		}
@@ -287,15 +282,16 @@ class PCAP_Reader {
 		// output the first row as to display the what is in each column
 		void initializeCSV() {
 			csv << "Packet Timestamp, Raw Timestamp Metadata, Converted Timestamp Metadata, ";
-			csv << "Previous Packet Offset, Agg Tap and Packet Delta, Error Code\n";
+			csv << "Previous Packet Offset, Agg Tap and Packet Delta, Error Code, ";
+			csv << "Payload\n";
 		}
 
 		// outputing the data to the csv
 		void addToCSV(long interPacketOffset_s, long interPacketOffset_us, long aggTapArrivalDelta_s, long aggTapArrivalDelta_us) {
 			csv << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
-			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << ", " << errorCode;
+			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << ", " << errorCode <<  ", ";
 
-			// Place printing of payload here
+			// print payload
 			getPacketAndPrintPayload();
 
 			csv << "\n";
