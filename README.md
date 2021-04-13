@@ -55,7 +55,9 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 	make run ./data/marketData.pcap
 	```
 	while in the base folder.
+<br/>
 
+------
 ### Manual Steps
 #### Compile
 * To compile the code manually, use
