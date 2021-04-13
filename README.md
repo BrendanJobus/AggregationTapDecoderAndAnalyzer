@@ -15,6 +15,7 @@
     <li>
       <a href="#getting-started"><b>Getting Started</b></a>
       <ul>
+	<li><a href="#install-libpcap">Install libpcap</a></li>
 	<li><a href="#automatic">Automatic</a></li>
         <li><a href="#manual-steps">Manual Steps</a></li>
       </ul>
@@ -34,6 +35,15 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 <!-- Getting Started -->
 ## Getting Started
 
+### Install libpcap
+* On Ubuntu 18.04+
+	```sh
+	sudo apt update
+	sudo apt install libpcap-dev
+	```
+<br/>
+
+------
 ### Automatic
 #### Compile
 * To compile the code, use
