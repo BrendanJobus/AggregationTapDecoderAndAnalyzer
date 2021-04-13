@@ -4,8 +4,8 @@
 class PCAP_Reader {
 	private:
 		enum error_codes {
-			packet_before_aggTap = 1,
-			aggTap_behind_previous = 10,
+			packet_before_aggTap = 0xA,
+			aggTap_behind_previous = 0xA0,
 		};
 
 		// each struct corresponds to a number of bits in the packets memory, to find out what each means, look at the structs
@@ -289,7 +289,7 @@ class PCAP_Reader {
 		// outputing the data to the csv
 		void addToCSV(long interPacketOffset_s, long interPacketOffset_us, long aggTapArrivalDelta_s, long aggTapArrivalDelta_us) {
 			csv << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
-			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << ", " << errorCode <<  ", ";
+			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << ", 0x" << std::hex << errorCode << std::dec <<  ", ";
 
 			// print payload
 			getPacketAndPrintPayload();
@@ -297,14 +297,32 @@ class PCAP_Reader {
 			csv << "\n";
 		}
 
-	public:
-		PCAP_Reader(): packetCount{0}, dataFormat{0}, csv{"./out/output.csv"}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}, errorCode{0}
-		{
+		
+		// takes in a the filename of the pcap input file and sets the csv output file to be a .csv file with the same name as the input file but in the ./out/ folder
+		void setOutputFile(std::string inputFilename) {
+			std::string outputFile;
+			outputFile = inputFilename.substr(inputFilename.rfind("/") + 1);
+			outputFile.erase(outputFile.rfind(".pcap"), 5);
+			outputFile.insert(0, "out/");
+			outputFile += ".csv";
+			csv.close();
+			csv.open(outputFile);
 			initializeCSV();
 		}
 
+	public:
+		PCAP_Reader(): packetCount{0}, dataFormat{0}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}, errorCode{0}
+		{
+		}
+
+		// TODO: add a way to pass the size of the header being used to the payload extraction
+		// make workOnPCAPs take in a file name string instead and do everything inside the workOnPCAPs funtion
+	
 		// takes in a pcap file, outputs certain data about the pcap itself, then figures out what format the packet is in, and sends it to the corresponding function
-		void workOnPCAPs(pcap_t *file) {
+		void workOnPCAPs(std::string filename) {
+			char errbuff[PCAP_ERRBUF_SIZE];
+			pcap_t *file = pcap_open_offline(filename.c_str(), errbuff);
+			setOutputFile(filename);
 			preSeconds = 0;
 			preNanoseconds = 0;
 			// pcap_next_ex returns a 1 so long as every thing is ok, so keep looping until its not 1
@@ -355,40 +373,16 @@ class PCAP_Reader {
 				preNanoseconds = nanoseconds;
 			}
 			csv.close();
-			csv.open("./out/output.csv");
 		}
-
-		// takes in a the filename of the pcap input file and sets the csv output file to be a .csv file with the same name as the input file but in the ./out/ folder
-		void setOutputFile(std::string inputFilename) {
-			std::string outputFile;
-			outputFile = inputFilename.substr(inputFilename.rfind("/") + 1);
-			outputFile.erase(outputFile.rfind(".pcap"), 5);
-			outputFile.insert(0, "out/");
-			outputFile += ".csv";
-			csv.close();
-			csv.open(outputFile);
-			initializeCSV();
-		}
-
-		// deallocates memory after we have finished
-		void destroy() {
-		csv.close();
-	}
 };
 
 int main(int argc, char **argv) {   
 	PCAP_Reader r{};
 
-	// This is the buffer that pcap uses to output the error into
-	char errbuff[PCAP_ERRBUF_SIZE];
-
 	if(argc > 1) { // if arguments are specified, run those files
 		for(int i{1}; i < argc; i++){
 			std::cout << argv[i] << '\n';
-			// Opening the pcap file in memory, pcap_t will point to the start of the file
-			pcap_t *file = pcap_open_offline(argv[i], errbuff);
-			r.setOutputFile(argv[i]);
-			r.workOnPCAPs(file);
+			r.workOnPCAPs(argv[i]);
 		}
 	} else {
 		DIR *dir;
@@ -400,15 +394,12 @@ int main(int argc, char **argv) {
 				std::string str(diread->d_name);
 				str.insert(0, directory);
 				if(str.find(".pcap") != std::string::npos) {
-					pcap_t *file = pcap_open_offline(str.c_str(), errbuff);
-					r.setOutputFile(str);
-					r.workOnPCAPs(file);
+					r.workOnPCAPs(str);
 				}
 			}
 			closedir(dir);
 		}
 	}
 
-	r.destroy();
 	return 0;
 }
