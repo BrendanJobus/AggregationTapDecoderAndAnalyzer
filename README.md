@@ -17,10 +17,6 @@
       <ul>
 	<li><a href="#automatic">Automatic</a></li>
         <li><a href="#manual-steps">Manual Steps</a></li>
-	<ul>
-		<li><a href="#compile">Compile</a></li>
-		<li><a href="#run">Run</a></li>
-	</ul>
       </ul>
     </li>
     <li><a href="#contributers"><b>Contributers</b></a></li>
@@ -39,23 +35,34 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 ## Getting Started
 
 ### Automatic
-* Run Makefile
+#### Compile
+* To compile the code, use
 	```sh
 	make
 	```
+	while in the base folder. This will compile the code into a binary called `test` in the bin folder.
+
+#### Run
+* To automatically compile and run the code, use
+	```sh
+	make run
+	```
+	while in the base folder.
 
 ### Manual Steps
 #### Compile
-* Compile the project
+* To compile the code manually, use
 	```sh
-	g++ ./src/main.cpp -lpcap -o test
+	g++ -Wall -std=c++2a -o ./bin/test ./src/main.cpp -lpcap
 	```
+	while in the base folder. This will compile the code into a binary called `test` in the bin folder.
 
 #### Run
-* Run the project
+* To run the compiled code, use
 	```sh
-	./test
+	./bin/test
 	```
+	while in the base folder.
 
 
 <!-- Contributers -->
