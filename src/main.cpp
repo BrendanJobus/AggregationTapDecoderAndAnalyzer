@@ -13,25 +13,40 @@ class PCAP_Reader {
 		const headerStructure::arista::sniff_types *aristaTypes;
 		const headerStructure::arista::sniff_times_64 *aristaTime64;
 		const headerStructure::arista::sniff_times_48 *aristaTime48;
-
 		int packetCount;
 
+		// For packet of example format
+		const headerStructure::exampleVendor::sniff_types *exTypes;
+		const headerStructure::exampleVendor::sniff_times_64 *exTime64;
+		const headerStructure::exampleVendor::sniff_times_48 *exTime48;
+
+		// variables for other packet data
 		u_short dataFormat;
 		u_short timestampLength;
 		u_short timeFormat;
 
-		// Opens a file to print to, this will be a csv file
-		FILE *fp;
+		// output stream
+		std::ofstream csv;
 
-		// This is the pointer that will hold the packet once we do pcap_next_ex
+		// pointers for pcap_next_ex()
 		const u_char *packet;
-
-		// This will store the pcap header, which holds information pertinent to pcap
 		struct pcap_pkthdr *header;
 
+		// Packet header and data sizes
+		int vendorSize;
+		int payloadSize;
+
+		// forward declaration of variables that hold the different times
+		u_int packetSeconds;
+		u_int packetNanoseconds;
 		u_long seconds;
 		u_long nanoseconds;
+		u_int rawSeconds;
+		u_int rawNanoseconds;
+		u_long preSeconds;
+		u_long preNanoseconds;
 
+		// forward declaration of variables needed for adjustment command
 		int sec_adjust;
 		int nanosec_adjust;
 
@@ -83,6 +98,45 @@ class PCAP_Reader {
 
 				if(timeFormat == headerStructure::arista::taiCode) {
 					std::cout << "Convert TAI to UTC\n";
+					seconds = taiToUtc(seconds);
+				}
+			}
+		}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+		// This function is exactly the same as the previous, only now its using the types from exampleVendor and is using the ex variables
+		void extractTimeExampleFormat() {
+			exTypes = (headerStructure::exampleVendor::sniff_types*)(packet + headerStructure::exampleVendor::TYPES_POS);
+
+			timestampLength = ntohs(exTypes->subType);
+			timeFormat  = ntohs(exTypes->version);
+
+			if (timestampLength == headerStructure::exampleVendor::sixtyFourBitCode) {
+				exTime64 = (headerStructure::exampleVendor::sniff_times_64*)(packet + headerStructure::exampleVendor::TIMES_POS);
+
+				rawSeconds = exTime64->seconds;
+				rawNanoseconds = exTime64->nanoseconds;	
+
+				seconds = ntohl(exTime64->seconds);
+				nanoseconds = ntohl(exTime64->nanoseconds);
+
+				if(timeFormat == headerStructure::exampleVendor::taiCode) {
+					printf("Converted Timestamp from TAI to UTC\n");
+					seconds = taiToUtc(seconds);
+				}
+			} 
+			else {
+				exTime48 = (headerStructure::exampleVendor::sniff_times_48*)(packet + headerStructure::exampleVendor::TIMES_POS);
+
+				rawSeconds = exTime48->seconds;
+				rawNanoseconds = exTime48->nanoseconds;
+
+				seconds = ntohl(exTime48->seconds);
+				nanoseconds = ntohl(exTime48->nanoseconds);
+
+				if(timeFormat == headerStructure::exampleVendor::taiCode) {
+					printf("Converted Timestamp from TAI to UTC\n");
 					seconds = taiToUtc(seconds);
 				}
 			}
@@ -258,7 +312,7 @@ class PCAP_Reader {
 		}
 
 	public:
-		PCAP_Reader(): packetCount{0}, dataFormat{0}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}, errorCode{0}
+		PCAP_Reader(): packetCount{0}, dataFormat{0}, preSeconds{0}, preNanoseconds{0}, sec_adjust{0}, nanosec_adjust{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}, errorCode{0}
 		{
 		}
 
@@ -269,65 +323,75 @@ class PCAP_Reader {
 		void workOnPCAPs(std::string filename) {
 			char errbuff[PCAP_ERRBUF_SIZE];
 			pcap_t *file = pcap_open_offline(filename.c_str(), errbuff);
+			if (file == NULL)
+			{
+				// add error code check here?
+				return;
+			}
+
 			setOutputFile(filename);
 			preSeconds = 0;
 			preNanoseconds = 0;
+			
+			// printing the nanosecond and second adjustments made
+			printf("Nanoseconds adjustment: %i\n", nanosec_adjust);
+			printf("Seconds adjustment: %i\n", sec_adjust);
+
 			// pcap_next_ex returns a 1 so long as every thing is ok, so keep looping until its not 1
 			while(pcap_next_ex(file, &header, &packet) >= 0) {
 				// printing the packet count
 				printf("Packet # %i\n", ++packetCount);
-				fprintf(fp, "Packet # %i\n", packetCount);
-
-
+				
 				// printing the length of the data
 				printf("Packet size: %d bytes\n", header->len);
-				fprintf(fp, "Packet size: %d\n", header->len);
 
 				// making sure the captured length is the same as the data length
 				if(header->len != header->caplen)
 					printf("Warning! Capture size different than packet size: %d bytes\n", header->len);
 
+				packetSeconds = header->ts.tv_sec;
+				packetNanoseconds = header->ts.tv_usec;
+
 				// printing out time that we captured the data
-				printf("Epoch Time: %ld:%ld seconds\n", header->ts.tv_sec, header->ts.tv_usec );
-				fprintf(fp, "Epoch Time: %ld:%ld seconds\n", header->ts.tv_sec, header->ts.tv_usec);
+				printf("Epoch Time: %i:%i seconds\n", packetSeconds, packetNanoseconds);
 
 				// putting data into the ethernet variable
 				ethernet = (headerStructure::sniff_ethernet*)(packet);
 				dataFormat = ntohs(ethernet->ether_type);
-				std::cout << "Data Format: " << std::hex << dataFormat << '\n';
 
 				// switching depending on the type of packet we have received (e.g. arista format)
 				switch(dataFormat) {
 					case headerStructure::arista_code:
+						printf("Data Fromat: Arista Vendor Specific Protocol\n");
+						vendorSize = headerStructure::arista::TOTAL_SIZE;
 						extractTimeAristaFormat();
+						break;
+					case headerStructure::example_code:
+						printf("Data Format: Example Vendor\n");
+						vendorSize = headerStructure::exampleVendor::TOTAL_SIZE;
+						extractTimeExampleFormat();
 						break;
 					default:
 						// either output an unkown format error, or just ignore, maybe do a warning instead of an error
 						break;
 				}
 
+				// run analysis on the timestamps to flag errors
 				timestampAnalysis();
 
 				printf("\n");
-				fprintf(fp, "\n");
+
+				preSeconds = seconds;
+				preNanoseconds = nanoseconds;
 			}
 			csv.close();
 		}
 
-		// deallocates memory after we have finished
-	void destroy() {
-		fclose(fp);
-	}
-
-	void adjustNanoseconds(int adj) {
-		nanosec_adjust += adj;
-	}
-
-	void adjustSeconds(int adj) {
-		sec_adjust += adj;
-	}
-
+	// returns 0 if no adjustments are made
+	// returns 1 or 2 if successful
+	// can use the return value to see how many adjustment commands were made
 	void timestampAdjustment(std::vector<std::string> adj) {
+
 		if(adj[0] == "-ns-adjust") {
 			nanosec_adjust += std::stoi(adj[1]);
 		}
@@ -349,6 +413,7 @@ int main(int argc, char **argv) {
 
 	if(argc > 1) { // if arguments are specified, run those files
 
+		// if number of arguments is min. 4, then look for any adjustment commands
 		std::vector<std::string> adj;
 		if (argc >= 4)
 		{
@@ -358,7 +423,6 @@ int main(int argc, char **argv) {
 		}
 
 		for(int i{1}; i < argc; i++){
-			
 			std::cout << argv[i] << '\n';
 			r.workOnPCAPs(argv[i]);
 		}

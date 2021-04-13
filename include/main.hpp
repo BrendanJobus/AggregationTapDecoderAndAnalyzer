@@ -111,7 +111,7 @@ class PCAP_READER {
 		int packetCount;
 
 		int sec_adjust;
-		double nanosec_adjust;
+		int nanosec_adjust;
 
 		u_short data_format;
 		u_short timestampLength;
