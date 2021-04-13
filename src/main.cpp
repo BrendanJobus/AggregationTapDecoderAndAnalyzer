@@ -10,9 +10,9 @@ class PCAP_Reader {
 
 		// each struct corresponds to a number of bits in the packets memory, to find out what each means, look at the structs
 		const headerStructure::sniff_ethernet *ethernet;
-		const headerStructure::arista::sniff_types *aristaTypes;
-		const headerStructure::arista::sniff_times_64 *aristaTime64;
-		const headerStructure::arista::sniff_times_48 *aristaTime48;
+		const headerStructure::arista7280::sniff_types *aristaTypes;
+		const headerStructure::arista7280::sniff_times_64 *aristaTime64;
+		const headerStructure::arista7280::sniff_times_48 *aristaTime48;
 		int packetCount;
 
 		// For packet of example format
@@ -56,7 +56,7 @@ class PCAP_Reader {
 		const u_int TAI_UTC_OFFSET;
 
 		//Get offset between TAI and UTC
-		u_int getTaiToUtcOffset() {
+		u_int getTAItoUTCOffset() {
 			//Get current TAI Time (to be completed)
 			u_long timeTAI = 0;
 			//Get current UTC Time
@@ -67,38 +67,38 @@ class PCAP_Reader {
 		}
 
 		//Convert TAI to UTC
-		u_long taiToUtc(u_long taiTime) {
-			return taiTime + TAI_UTC_OFFSET;
+		u_long TAI_to_UTC(u_long TAI_time) {
+			return TAI_time + TAI_UTC_OFFSET;
 		}
 
 ///////////// These functions extract the agg tap times from the packets, each one will work for its corresponding packet format /////////////
-		void extractTimeAristaFormat() {
+		void extractTimeArista7280Format() {
 			// putting data into the aristaTypes variable
-			aristaTypes = (headerStructure::arista::sniff_types*)(packet + headerStructure::arista::TYPES_POS);
+			aristaTypes = (headerStructure::arista7280::sniff_types*)(packet + headerStructure::arista7280::TYPES_POS);
 
 			timestampLength = ntohs(aristaTypes->subType);
 			timeFormat  = ntohs(aristaTypes->version);
 
-			if (timestampLength == headerStructure::arista::sixtyFourBitCode) {
-				aristaTime64 = (headerStructure::arista::sniff_times_64*)(packet + headerStructure::arista::TIMES_POS);
+			if (timestampLength == headerStructure::arista7280::sixtyFourBitCode) {
+				aristaTime64 = (headerStructure::arista7280::sniff_times_64*)(packet + headerStructure::arista7280::TIMES_POS);
 								
 				seconds = ntohl(aristaTime64->seconds);
 				nanoseconds = ntohl(aristaTime64->seconds);
 
-				if(timeFormat == headerStructure::arista::taiCode) {
+				if(timeFormat == headerStructure::arista7280::TAICode) {
 					std::cout << "Convert TAI to UTC\n";
-					seconds = taiToUtc(seconds);
+					seconds = TAI_to_UTC(seconds);
 				}
 			} 
 			else {
-				aristaTime48 = (headerStructure::arista::sniff_times_48*)(packet + headerStructure::arista::TIMES_POS);
+				aristaTime48 = (headerStructure::arista7280::sniff_times_48*)(packet + headerStructure::arista7280::TIMES_POS);
 
 				seconds = ntohl(aristaTime48->seconds);
 				nanoseconds = ntohl(aristaTime48->nanoseconds);
 
-				if(timeFormat == headerStructure::arista::taiCode) {
+				if(timeFormat == headerStructure::arista7280::TAICode) {
 					std::cout << "Convert TAI to UTC\n";
-					seconds = taiToUtc(seconds);
+					seconds = TAI_to_UTC(seconds);
 				}
 			}
 		}
@@ -121,9 +121,9 @@ class PCAP_Reader {
 				seconds = ntohl(exTime64->seconds);
 				nanoseconds = ntohl(exTime64->nanoseconds);
 
-				if(timeFormat == headerStructure::exampleVendor::taiCode) {
+				if(timeFormat == headerStructure::exampleVendor::TAICode) {
 					printf("Converted Timestamp from TAI to UTC\n");
-					seconds = taiToUtc(seconds);
+					seconds = TAI_to_UTC(seconds);
 				}
 			} 
 			else {
@@ -135,9 +135,9 @@ class PCAP_Reader {
 				seconds = ntohl(exTime48->seconds);
 				nanoseconds = ntohl(exTime48->nanoseconds);
 
-				if(timeFormat == headerStructure::exampleVendor::taiCode) {
+				if(timeFormat == headerStructure::exampleVendor::TAICode) {
 					printf("Converted Timestamp from TAI to UTC\n");
-					seconds = taiToUtc(seconds);
+					seconds = TAI_to_UTC(seconds);
 				}
 			}
 		}
@@ -312,7 +312,7 @@ class PCAP_Reader {
 		}
 
 	public:
-		PCAP_Reader(): packetCount{0}, dataFormat{0}, preSeconds{0}, preNanoseconds{0}, sec_adjust{0}, nanosec_adjust{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}, errorCode{0}
+		PCAP_Reader(): packetCount{0}, dataFormat{0}, preSeconds{0}, preNanoseconds{0}, sec_adjust{0}, nanosec_adjust{0}, TAI_UTC_OFFSET{getTAItoUTCOffset()}, errorCode{0}
 		{
 		}
 
@@ -359,12 +359,12 @@ class PCAP_Reader {
 				ethernet = (headerStructure::sniff_ethernet*)(packet);
 				dataFormat = ntohs(ethernet->ether_type);
 
-				// switching depending on the type of packet we have received (e.g. arista format)
+				// switching depending on the type of packet we have received (e.g. arista7280 format)
 				switch(dataFormat) {
-					case headerStructure::arista_code:
-						printf("Data Fromat: Arista Vendor Specific Protocol\n");
-						vendorSize = headerStructure::arista::TOTAL_SIZE;
-						extractTimeAristaFormat();
+					case headerStructure::arista7280_code:
+						printf("Data Format: arista7280 Vendor Specific Protocol\n");
+						vendorSize = headerStructure::arista7280::TOTAL_SIZE;
+						extractTimeArista7280Format();
 						break;
 					case headerStructure::example_code:
 						printf("Data Format: Example Vendor\n");
@@ -387,9 +387,8 @@ class PCAP_Reader {
 			csv.close();
 		}
 
-	// returns 0 if no adjustments are made
-	// returns 1 or 2 if successful
-	// can use the return value to see how many adjustment commands were made
+	// takes in a vector of exactly four string values and checks for integer values inbetween, and adds to adjustment variables
+	// aborts (core dumped) if incorrect string values input
 	void timestampAdjustment(std::vector<std::string> adj) {
 
 		if(adj[0] == "-ns-adjust") {

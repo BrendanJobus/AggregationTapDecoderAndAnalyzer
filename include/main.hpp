@@ -17,7 +17,7 @@
 
 namespace headerStructure {
 	enum format_code {
-		arista_code = 0xd28b,
+		arista7280_code = 0xd28b,
 		example_code = 0x9999,
 	};
 
@@ -34,15 +34,15 @@ namespace headerStructure {
 	constexpr int IP_SIZE{20};
 	constexpr int UDP_SIZE{8};
 
-	// information related to arista timestamp header format
-	namespace arista {
+	// information related to arista7280 timestamp header format
+	namespace arista7280 {
 		// Size of the packet and other position information
 		constexpr int TOTAL_SIZE{14};
 		constexpr int TYPES_POS{ETHER_SIZE};
 		constexpr int TYPES_SIZE{4};
 		constexpr int TIMES_POS{TYPES_POS + TYPES_SIZE};
 		// Codes to identify timestamp formats
-		constexpr u_short taiCode{0x10};
+		constexpr u_short TAICode{0x10};
 		constexpr u_short sixtyFourBitCode{0x1};
 
 		// Version is the TAI or UTC
@@ -70,7 +70,7 @@ namespace headerStructure {
 	// workOnPCAPs finds a packet with a this formats code, we will create pointers that will point to the data
 	// at the top of PCAP_READER
 	//
-	// for this example, I will assume that the only differences between the arista format
+	// for this example, I will assume that the only differences between the arista7280 format
 	// and this format is that this one has its metadata header after the ip header and that the seconds
 	// will come after the nanoseconds ontop of a varying identifying code
 	namespace exampleVendor {
@@ -78,7 +78,7 @@ namespace headerStructure {
 		constexpr int TYPES_POS{ETHER_SIZE + VIRTUAL_LAN_SIZE + IP_SIZE};
 		constexpr int TYPES_SIZE{4};
 		constexpr int TIMES_POS{TYPES_POS + TYPES_SIZE};
-		constexpr u_short taiCode{0x10};
+		constexpr u_short TAICode{0x10};
 		constexpr u_short sixtyFourBitCode{0x1};
 
 		struct sniff_types {
@@ -101,9 +101,9 @@ namespace headerStructure {
 class PCAP_READER {
 	private:
 		const headerStructure::sniff_ethernet *ethernet;
-		const headerStructure::arista::sniff_types *aristaTypes;
-		const headerStructure::arista::sniff_times_64 *aristaTime64;
-		const headerStructure::arista::sniff_times_48 *aristaTime48;
+		const headerStructure::arista7280::sniff_types *aristaTypes;
+		const headerStructure::arista7280::sniff_times_64 *aristaTime64;
+		const headerStructure::arista7280::sniff_times_48 *aristaTime48;
 		const headerStructure::exampleVendor::sniff_types *exTypes;
 		const headerStructure::exampleVendor::sniff_times_64 *exTime64;
 		const headerStructure::exampleVendor::sniff_times_48 *exTime48;
@@ -124,11 +124,11 @@ class PCAP_READER {
 		const u_char *packet;
 		struct pcap_pkthdr *header;
 
-		// holds the size of the current packets propreitary header
+		// holds the size of the current packets propietary header
 		int vendorSize;
 		int payloadSize;
 
-		// This is the pcap times
+		// These are the .pcap times
 		u_int packetSeconds;
 		u_int packetNanoseconds;
 
@@ -146,10 +146,10 @@ class PCAP_READER {
 
 		const int TAI_UTC_OFFSET;
 
-		int getTaiToUtcOffset();
-		u_int taiToUtc(u_int);
+		int getTAItoUTCOffset();
+		u_int TAI_to_UTC(u_int);
 
-		void extractTimeAristaFormat();
+		void extractTimeArista7280Format();
 		void extractTimeExampleFormat();
 
 		void timestampAnalysis();
@@ -162,8 +162,6 @@ class PCAP_READER {
 		PCAP_READER();
 
 		void workOnPCAPs(pcap_t *);
-
 		void setOutputFile(std::string);
-
 		void destroy();
 };
