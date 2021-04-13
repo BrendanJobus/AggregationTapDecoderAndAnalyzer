@@ -47,6 +47,13 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 	```sh
 	make run
 	```
+	while in the base folder. Which analyses all of the pcap files held in the data folder.
+	
+#### Anaylse a Specific pCap
+* To anaylse a specific pCap, add the file location to the end of the command eg.
+	```sh
+	make run ./data/marketData.pcap
+	```
 	while in the base folder.
 
 ### Manual Steps
@@ -61,6 +68,13 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 * To run the compiled code, use
 	```sh
 	./bin/test
+	```
+	while in the base folder. Which analyses all of the pcap files held in the data folder.
+
+#### Anaylse a Specific pCap
+* To anaylse a specific pCap, add the file location to the end of the command eg.
+	```sh
+	./bin/test ./data/marketData.pcap
 	```
 	while in the base folder.
 
