@@ -36,6 +36,10 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 ## Getting Started
 
 ### Using the binary
+Use the included ```analyzer``` binary included in the bin folder for v1.0 of the programme. This can be run from the base directory with:
+```sh
+	./bin/analyzer
+```
 
 ### Compiling and Running
 
