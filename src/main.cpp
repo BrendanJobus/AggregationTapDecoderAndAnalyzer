@@ -348,23 +348,7 @@ class PCAP_Reader {
 			}
 			csv.close();
 		}
-
-		void timestampAdjustment(std::vector<std::string> adj) {
-			if (adj[0] == "-ns-adjust") {
-				nanosec_adjust += std::stoi(adj[1]);
-			}
-			else if(adj[0] == "-s-adjust") {
-				sec_adjust += std::stoi(adj[1]);
-			}
-
-			if (adj[2] == "-ns-adjust") {
-				nanosec_adjust += std::stoi(adj[3]);
-			}
-			else if (adj[2] == "-s-adjust") {
-				sec_adjust += std::stoi(adj[3]);
-			}
-		}
-
+		
 		void setAdjustSec(std::string adj) {
 			sec_adjust += std::stoi(adj);
 		}
