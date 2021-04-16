@@ -15,6 +15,7 @@
     <li>
       <a href="#getting-started"><b>Getting Started</b></a>
       <ul>
+	<li><a href="#using-the-binary">Using the binary</a></li>
 	<li><a href="#install-libpcap">Install libpcap</a></li>
 	<li><a href="#automatic">Automatic</a></li>
         <li><a href="#manual-steps">Manual Steps</a></li>
