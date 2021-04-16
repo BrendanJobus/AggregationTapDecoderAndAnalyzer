@@ -164,3 +164,13 @@ class PCAP_READER {
 
 		void destroy();
 };
+
+const std::string helpString = "Agg tap decoder and analyzer using libpcap designed "
+							   "for Pico Quantitative Trading LLC.\n\nBasic operation: "
+							   "takes in pcap files that contain agg tap timestamps, "
+							   "decodes and analyzes their agg tap content\n\nCommands:\n"
+							   "    --help / -h: print help\n    -s / -ns: adjusts the agg "
+							   "tap timestamp by x seconds or x nanoseconds\n    -ps / -pns: "
+							   "adjusts the pcap timestamp by x seconds or x nanoseconds\n"
+							   "\nDesigned By:\n  Alannah Henry    Brendan Jobus\n  Cillian Fogarty  "
+							   "Darren Aragones\n  Finn Jaksland    Owen Gallagher\n";

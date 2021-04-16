@@ -4,7 +4,11 @@
 class PCAP_Reader {
 	private:
 		enum error_codes {
-			packet_before_aggTap = 0xA,
+			
+			// the agg tap timestamp is ahead of the packets timestamp
+			packet_before_aggTap = 0xB,
+
+			// the current packet's agg tap timestamp is behind the previous packet's agg tap timestamp
 			aggTap_behind_previous = 0xA0,
 		};
 
@@ -46,6 +50,12 @@ class PCAP_Reader {
 		u_int rawNanoseconds;
 		u_long preSeconds;
 		u_long preNanoseconds;
+
+		// forward declaration of variables needed for adjustment command
+		int sec_adjust;
+		int nanosec_adjust;
+		int packet_sec_adjust;
+		int packet_nanosec_adjust;
 
 		//Offset between TAI and UTC
 		const int TAI_UTC_OFFSET = getTaiToUtcOffset();
@@ -147,15 +157,10 @@ class PCAP_Reader {
 		//@author Cillian Fogarty
 		void timestampAnalysis() {
 			errorCode = 0;
-			//Time Packet was captured at (UTC)
-			printf("UTC Timestamp: %ld:%ld seconds\n", seconds, nanoseconds);
-
-			printf("Raw Timestamp: %x:%x\n", rawSeconds, rawNanoseconds);
 
 			// get offset between current and previous packet
 			long secondDelta = seconds - preSeconds;
 			long nanosecondDelta = 0;
-			bool arePacketsInOrder = true;
 
 			//ensures there has been a previous packet
 			if (preSeconds != 0 && preNanoseconds != 0) {
@@ -170,13 +175,11 @@ class PCAP_Reader {
 					// add 1 second in nanoseconds to previous nanoseconds
 					nanosecondDelta = nanoseconds - (1000000000 + preNanoseconds);
 					secondDelta += 1;
-					arePacketsInOrder = false;
 					errorCode = aggTap_behind_previous;
 				}
 				// case: both are behind
 				else if (secondDelta < 0 && nanoseconds < preNanoseconds) {
 					nanosecondDelta = nanoseconds - preNanoseconds;
-					arePacketsInOrder = false;
 					errorCode = aggTap_behind_previous;
 				}
 				// case: both are ahead
@@ -189,13 +192,10 @@ class PCAP_Reader {
 				nanosecondDelta = 0;
 			}
 
-///////////// makes no sense why the ag tap is greater that the pcap time
-///////////// should be the other way around
-
 			// get offset between current packet and Aggregation Tap
 			long aggTapArrivalDelta_s = packetSeconds - seconds;
 			long aggTapArrivalDelta_us = 0;
-			bool areTimesConsistent = true;
+
 			// case: the seconds are ahead, but the nanoseconds are behind
 			if (aggTapArrivalDelta_s > 0 && packetNanoseconds < nanoseconds) {
 				// add 1 second in nanoseconds to current nanoseconds
@@ -207,13 +207,11 @@ class PCAP_Reader {
 				// add 1 second in nanoseconds to epoch nanoseconds
 				aggTapArrivalDelta_us = packetNanoseconds - (1000000000 + nanoseconds);
 				aggTapArrivalDelta_s += 1;
-				areTimesConsistent = false;
 				errorCode |= packet_before_aggTap;
 			} 
 			// case: both are behind
-			else if (aggTapArrivalDelta_s <=0 && packetNanoseconds < nanoseconds) {
+			else if (aggTapArrivalDelta_s <= 0 && packetNanoseconds < nanoseconds) {
 				aggTapArrivalDelta_us = packetNanoseconds - nanoseconds;
-				areTimesConsistent = false;
 				errorCode |= packet_before_aggTap;
 			}
 			// case: both are ahead
@@ -221,26 +219,7 @@ class PCAP_Reader {
 				aggTapArrivalDelta_us = packetNanoseconds - nanoseconds;
 			}
 
-//////////////////////// printing
 			addToCSV(secondDelta, nanosecondDelta, aggTapArrivalDelta_s, aggTapArrivalDelta_us);
-
-			printf("Offset from previous packet: %ld:%ld seconds\n", secondDelta, nanosecondDelta);
-
-			// check packets arrived in the correct order
-			if (arePacketsInOrder == true) {
-				printf("Packets are in order\n");
-			} else {
-				printf("Packets are not in order\n");
-			}
-
-			printf("Offset from Aggregation Tap: %ld:%ld seconds\n", aggTapArrivalDelta_s, aggTapArrivalDelta_us);
-
-			// check packet time and Aggregation Tap time consistent
-			if (areTimesConsistent == true) {
-				printf("Packet time and Aggregation Tap time are consistent\n");
-			} else {
-				printf("Packet time and Aggregation Tap time are not consistent\n");
-			}
 		}
 
 		// extract and print the packet metadata
@@ -264,14 +243,12 @@ class PCAP_Reader {
 			int metadata_length = udp_header_length - length_udp_info;
 
 			// extract the metadata from the file and output it
-			printf("Payload:\n");
 			if (metadata_length > 0) {
 		        const u_char *temp_pointer = metadata_header;
 		        int byte_count = 0;
 		        char payload[4];
 		        while (byte_count++ < metadata_length) {
 					sprintf(payload, "%02X ", *temp_pointer);
-					printf("%s", payload);
 					csv << payload;
 		            temp_pointer++;
 		        }
@@ -311,12 +288,11 @@ class PCAP_Reader {
 		}
 
 	public:
-		PCAP_Reader(): packetCount{0}, dataFormat{0}, preSeconds{0}, preNanoseconds{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}, errorCode{0}
+		PCAP_Reader(): packetCount{0}, dataFormat{0}, preSeconds{0}, preNanoseconds{0}, sec_adjust{0}, nanosec_adjust{0}, packet_sec_adjust{0}, packet_nanosec_adjust{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}, errorCode{0}
 		{
 		}
 
 		// TODO: add a way to pass the size of the header being used to the payload extraction
-		// make workOnPCAPs take in a file name string instead and do everything inside the workOnPCAPs funtion
 	
 		// takes in a pcap file, outputs certain data about the pcap itself, then figures out what format the packet is in, and sends it to the corresponding function
 		void workOnPCAPs(std::string filename) {
@@ -330,9 +306,6 @@ class PCAP_Reader {
 				// printing the packet count
 				printf("Packet # %i\n", ++packetCount);
 
-				// printing the length of the data
-				printf("Packet size: %d bytes\n", header->len);
-
 				// making sure the captured length is the same as the data length
 				if(header->len != header->caplen)
 					printf("Warning! Capture size different than packet size: %d bytes\n", header->len);
@@ -340,8 +313,8 @@ class PCAP_Reader {
 				packetSeconds = header->ts.tv_sec;
 				packetNanoseconds = header->ts.tv_usec;
 
-				// printing out time that we captured the data
-				printf("Epoch Time: %i:%i seconds\n", packetSeconds, packetNanoseconds);
+				packetSeconds += packet_sec_adjust;
+				packetNanoseconds += packet_nanosec_adjust;
 
 				// putting data into the ethernet variable
 				ethernet = (headerStructure::sniff_ethernet*)(packet);
@@ -364,15 +337,48 @@ class PCAP_Reader {
 						break;
 				}
 
+				seconds += sec_adjust;
+				nanoseconds += nanosec_adjust;
+
 				// run analysis on the timestamps to flag errors
 				timestampAnalysis();
-
-				printf("\n");
 
 				preSeconds = seconds;
 				preNanoseconds = nanoseconds;
 			}
 			csv.close();
+		}
+
+		void timestampAdjustment(std::vector<std::string> adj) {
+			if (adj[0] == "-ns-adjust") {
+				nanosec_adjust += std::stoi(adj[1]);
+			}
+			else if(adj[0] == "-s-adjust") {
+				sec_adjust += std::stoi(adj[1]);
+			}
+
+			if (adj[2] == "-ns-adjust") {
+				nanosec_adjust += std::stoi(adj[3]);
+			}
+			else if (adj[2] == "-s-adjust") {
+				sec_adjust += std::stoi(adj[3]);
+			}
+		}
+
+		void setAdjustSec(std::string adj) {
+			sec_adjust += std::stoi(adj);
+		}
+
+		void setAdjustNanosec(std::string adj) {
+			nanosec_adjust += std::stoi(adj);
+		}
+
+		void setAdjustPacketSec(std::string adj) {
+			packet_sec_adjust += std::stoi(adj);
+		}
+
+		void setAdjustPacketNanosec(std::string adj) {
+			packet_nanosec_adjust += std::stoi(adj);
 		}
 };
 
@@ -380,9 +386,38 @@ int main(int argc, char **argv) {
 	PCAP_Reader r{};
 
 	if(argc > 1) { // if arguments are specified, run those files
-		for(int i{1}; i < argc; i++){
-			std::cout << argv[i] << '\n';
-			r.workOnPCAPs(argv[i]);
+		if ( (argc == 2) && (( (std::string)argv[1] == "--help") || ((std::string)argv[1] == "-h")) ) {
+			std::cout << helpString;
+		}
+		else {
+			std::vector<std::string> files;
+			for(int i{1}; i < argc; i++) {
+				// if the first character of the string is a "-"" assume that it is an argument, else, assume it is a file
+				if ( argv[i][0] == '-') {
+					if ( (std::string)argv[i] == "-s") {
+						r.setAdjustSec(argv[++i]);
+					}
+					else if ( (std::string)argv[i] == "-ns") {
+						r.setAdjustNanosec(argv[++i]);
+					}
+					else if ( (std::string)argv[i] == "-ps") {
+						r.setAdjustPacketSec(argv[++i]);
+					}
+					else if ( (std::string) argv[i] == "-pns") {
+						r.setAdjustPacketNanosec(argv[++i]);
+					}
+					else {
+						printf("Invalid input\nFor help, use argument -h or --help\n");
+					}
+				} else {
+					files.push_back(argv[i]);
+				}
+			}
+
+			for(std::string file : files) {
+				std::cout << file << '\n';
+				r.workOnPCAPs(file);
+			}
 		}
 	} else {
 		DIR *dir;
