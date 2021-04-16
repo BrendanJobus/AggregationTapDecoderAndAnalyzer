@@ -35,7 +35,11 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 <!-- Getting Started -->
 ## Getting Started
 
-### Install libpcap
+### Using the binary
+
+### Compiling and Running
+
+#### Install libpcap
 * On Ubuntu 18.04+
 	```sh
 	sudo apt update
@@ -44,22 +48,22 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 <br/>
 
 ------
-### Automatic
-#### Compile
+#### Automatic
+##### Compile
 * To compile the code, use
 	```sh
 	make
 	```
 	while in the base folder. This will compile the code into a binary called `test` in the bin folder.
 
-#### Run
+##### Run
 * To automatically compile and run the code, use
 	```sh
 	make run
 	```
 	while in the base folder. Which analyses all of the pcap files held in the data folder.
 	
-#### Anaylse a Specific pCap
+##### Anaylse a Specific pCap
 * To anaylse a specific pCap, add the file location to the end of the command eg.
 	```sh
 	make run ./data/marketData.pcap
@@ -68,22 +72,22 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 <br/>
 
 ------
-### Manual Steps
-#### Compile
+#### Manual Steps
+##### Compile
 * To compile the code manually, use
 	```sh
 	g++ -Wall -std=c++2a -o ./bin/test ./src/main.cpp -lpcap
 	```
 	while in the base folder. This will compile the code into a binary called `test` in the bin folder.
 
-#### Run
+##### Run
 * To run the compiled code, use
 	```sh
 	./bin/test
 	```
 	while in the base folder. Which analyses all of the pcap files held in the data folder.
 
-#### Anaylse a Specific pCap
+##### Anaylse a Specific pCap
 * To anaylse a specific pCap, add the file location to the end of the command eg.
 	```sh
 	./bin/test ./data/marketData.pcap
