@@ -37,13 +37,16 @@ namespace headerStructure {
 	// information related to arista timestamp header format
 	namespace arista {
 		// Size of the packet and other position information
-		constexpr int TOTAL_SIZE{14};
+		constexpr int SIZE_WO_TIMESTAMP{10};
 		constexpr int TYPES_POS{ETHER_SIZE};
 		constexpr int TYPES_SIZE{4};
 		constexpr int TIMES_POS{TYPES_POS + TYPES_SIZE};
 		// Codes to identify timestamp formats
 		constexpr u_short taiCode{0x10};
 		constexpr u_short sixtyFourBitCode{0x1};
+		constexpr int SIZE_OF_SECONDS{4};
+		constexpr int SIZE_OF_NANOSECONDS_64{4};
+		constexpr int SIZE_OF_NANOSECONDS_48{3};
 
 		// Version is the TAI or UTC
 		// TAI is 0010 and UTC is 0110
@@ -74,12 +77,15 @@ namespace headerStructure {
 	// and this format is that this one has its metadata header after the ip header and that the seconds
 	// will come after the nanoseconds ontop of a varying identifying code
 	namespace exampleVendor {
-		constexpr int TOTAL_SIZE{14};
+		constexpr int SIZE_WO_TIMESTAMP{10};
 		constexpr int TYPES_POS{ETHER_SIZE + VIRTUAL_LAN_SIZE + IP_SIZE};
 		constexpr int TYPES_SIZE{4};
 		constexpr int TIMES_POS{TYPES_POS + TYPES_SIZE};
 		constexpr u_short taiCode{0x10};
 		constexpr u_short sixtyFourBitCode{0x1};
+		constexpr int SIZE_OF_SECONDS{4};
+		constexpr int SIZE_OF_NANOSECONDS_64{4};
+		constexpr int SIZE_OF_NANOSECONDS_48{3};
 
 		struct sniff_types {
 			u_short subType;
