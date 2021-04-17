@@ -15,6 +15,7 @@
     <li>
       <a href="#getting-started"><b>Getting Started</b></a>
       <ul>
+	<li><a href="#using-the-binary">Using the binary</a></li>
 	<li><a href="#install-libpcap">Install libpcap</a></li>
 	<li><a href="#automatic">Automatic</a></li>
         <li><a href="#manual-steps">Manual Steps</a></li>
@@ -35,7 +36,16 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 <!-- Getting Started -->
 ## Getting Started
 
-### Install libpcap
+### Using the binary
+* Use the included ```analyzer``` binary included in the ```bin``` folder for v1.0 of the programme. This can be run from the base directory with
+	```sh
+	./bin/analyzer
+	```
+
+### Compiling and Running
+Compiling and running code manually or automatically with the included makefile is recommended only for development purposes. The development binary will be placed in the ```bin``` folder as ```test```.
+
+#### Install libpcap
 * On Ubuntu 18.04+
 	```sh
 	sudo apt update
@@ -44,22 +54,22 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 <br/>
 
 ------
-### Automatic
-#### Compile
+#### Automatic
+##### Compile
 * To compile the code, use
 	```sh
 	make
 	```
 	while in the base folder. This will compile the code into a binary called `test` in the bin folder.
 
-#### Run
+##### Run
 * To automatically compile and run the code, use
 	```sh
 	make run
 	```
 	while in the base folder. Which analyses all of the pcap files held in the data folder.
 	
-#### Anaylse a Specific pCap
+##### Anaylse a Specific pCap
 * To anaylse a specific pCap, add the file location to the end of the command eg.
 	```sh
 	make run ./data/marketData.pcap
@@ -68,22 +78,22 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 <br/>
 
 ------
-### Manual Steps
-#### Compile
+#### Manual Steps
+##### Compile
 * To compile the code manually, use
 	```sh
 	g++ -Wall -std=c++2a -o ./bin/test ./src/main.cpp -lpcap
 	```
 	while in the base folder. This will compile the code into a binary called `test` in the bin folder.
 
-#### Run
+##### Run
 * To run the compiled code, use
 	```sh
 	./bin/test
 	```
 	while in the base folder. Which analyses all of the pcap files held in the data folder.
 
-#### Anaylse a Specific pCap
+##### Anaylse a Specific pCap
 * To anaylse a specific pCap, add the file location to the end of the command eg.
 	```sh
 	./bin/test ./data/marketData.pcap
