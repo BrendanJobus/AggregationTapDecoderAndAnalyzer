@@ -154,8 +154,8 @@ class PCAP_Reader {
 		}
 
 		//@author Darren Aragones
-		int extractTimeArista7130Format() {
-			arista7130_time64 = (headerStructure::arista7130::sniff_times_64*)(packet + headerStructure::arista7130::TIMES_POS);
+		int extractTimeArista7130Format(u_int packet_len) {
+			arista7130_time64 = (headerStructure::arista7130::sniff_times_64*)(packet + packet_len - headerStructure::arista7130::SIZE_WO_FCS);
 
 			// Timestamp is always UTC in metamako/7130 format
 			rawSeconds = arista7130_time64->seconds;
@@ -251,7 +251,7 @@ class PCAP_Reader {
 
 		// extract and print the packet metadata
 		// @author Cillian Fogarty
-		void extractPayloadArista7280(int headerSize) {
+		void extractPayloadArista(int headerSize) {
 			// extract the length of the ip_data from the file
 			int ethernet_header_length = headerStructure::ETHER_SIZE + headerSize; //constant length in bytes
 			const u_char *ip_header = packet + ethernet_header_length;
@@ -271,30 +271,6 @@ class PCAP_Reader {
 			// extract the metadata from the file and output it
 			if (udp_payload_length > 0) {
 		        const u_char *temp_pointer = metadata_header;
-		        int byte_count = 0;
-		        char payload[4];
-		        while (byte_count++ < udp_payload_length) {
-					sprintf(payload, "%02X ", *temp_pointer);
-					csv << payload;
-		            temp_pointer++;
-		        }
-		    }
-
-			csv << "\n";
-		}
-
-		//@author Darren Aragones
-		void extractPayloadArista7130(int headerSize) {
-			int udp_header_length = headerStructure::ETHER_SIZE + headerSize + headerStructure::arista7130::SIZE_OF_DEST_ADDR;
-			const u_char *udp_header = packet + udp_header_length + (headerStructure::arista7130::SIZE_OF_UDP_PORT*2) + 1;
-			u_short total_udp_length = ((*udp_header));
-
-			int udp_payload_length = total_udp_length - headerStructure::UDP_SIZE;
-			const u_char *udp_payload = packet + udp_header_length + headerStructure::UDP_SIZE + 1;
-			
-			// extract the metadata from the file and output it
-			if (udp_payload_length > 0) {
-		        const u_char *temp_pointer = udp_payload;
 		        int byte_count = 0;
 		        char payload[4];
 		        while (byte_count++ < udp_payload_length) {
@@ -366,7 +342,7 @@ class PCAP_Reader {
 						headerSize += extractTimeArista7280Format();
 						// run analysis on the timestamps to flag errors
 						timestampAnalysis();
-						extractPayloadArista7280(headerSize);
+						extractPayloadArista(headerSize);
 						break;
 
 					case headerStructure::example_code:
@@ -374,15 +350,15 @@ class PCAP_Reader {
 						headerSize = headerStructure::exampleVendor::SIZE_WO_TIMESTAMP;
 						headerSize += extractTimeExampleFormat();
 						timestampAnalysis();
-						extractPayloadArista7280(headerSize);
+						extractPayloadArista(headerSize);
 						break;
 
 					case headerStructure::arista7130_code:
-						headerSize = headerStructure::arista7130::SIZE_WO_TIMESTAMP;
-						headerSize += extractTimeArista7130Format();
+						//printf("Data Format: arista7130 Vendor Specific Protocol\n");
+						extractTimeArista7130Format(header->len);
 						timestampAnalysis();
-						extractPayloadArista7130(headerSize);
-						// TO-DO: does not work with current get packet and print payload function!!!!
+						// Arista 7130 packets are injected into the end of the packet AFTER the payload
+						extractPayloadArista(0); 
 						break;
 
 					default:
