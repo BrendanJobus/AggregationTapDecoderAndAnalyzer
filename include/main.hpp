@@ -71,12 +71,11 @@ namespace headerStructure {
 
 	namespace arista7130 {
 		constexpr int SIZE_OF_FCS{4};
-		constexpr int TIMES_POS{ETHER_SIZE + SIZE_OF_FCS};
+		constexpr int HEADER_SIZE{16};
+		constexpr int SIZE_WO_FCS{HEADER_SIZE - SIZE_OF_FCS};
+		constexpr int SIZE_WO_TIMESTAMP{8};
 		constexpr int SIZE_OF_SECONDS{4};
 		constexpr int SIZE_OF_NANOSECONDS{4};
-		constexpr int SIZE_WO_TIMESTAMP{8};
-		constexpr int SIZE_OF_DEST_ADDR{4};
-		constexpr int SIZE_OF_UDP_PORT{2};
 
 		struct sniff_times_64 {
 			u_int seconds;
@@ -174,8 +173,7 @@ class PCAP_READER {
 		void extractTimeExampleFormat();
 
 		void timestampAnalysis();
-		void extractPayloadArista7280();
-		void extractPayloadArista7130();
+		void extractPayloadArista();
 
 		void initializeCSV();
 		void addPacketDataCSV(long, long, long, long);
