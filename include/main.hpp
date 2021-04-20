@@ -74,6 +74,9 @@ namespace headerStructure {
 		constexpr int TIMES_POS{ETHER_SIZE + SIZE_OF_FCS};
 		constexpr int SIZE_OF_SECONDS{4};
 		constexpr int SIZE_OF_NANOSECONDS{4};
+		constexpr int SIZE_WO_TIMESTAMP{8};
+		constexpr int SIZE_OF_DEST_ADDR{4};
+		constexpr int SIZE_OF_UDP_PORT{2};
 
 		struct sniff_times_64 {
 			u_int seconds;

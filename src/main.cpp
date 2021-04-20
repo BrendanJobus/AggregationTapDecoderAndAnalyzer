@@ -153,6 +153,7 @@ class PCAP_Reader {
 			}
 		}
 
+		//@author Darren Aragones
 		int extractTimeArista7130Format() {
 			arista7130_time64 = (headerStructure::arista7130::sniff_times_64*)(packet + headerStructure::arista7130::TIMES_POS);
 
@@ -170,8 +171,8 @@ class PCAP_Reader {
 
 		long errorCode;
 		// timestamp analysis
-		//@author Cillian Fogarty
-		void timestampAnalysis(int headerSize) {
+		// @author Cillian Fogarty
+		void timestampAnalysis() {
 
 			seconds += sec_adjust;
 			nanoseconds += nanosec_adjust;
@@ -239,17 +240,17 @@ class PCAP_Reader {
 				aggTapArrivalDelta_us = packetNanoseconds - nanoseconds;
 			}
 
-			addPacketDataCSV(secondDelta, nanosecondDelta, aggTapArrivalDelta_s, aggTapArrivalDelta_us, headerSize);
+			addPacketDataCSV(secondDelta, nanosecondDelta, aggTapArrivalDelta_s, aggTapArrivalDelta_us);
 		}
 
 		// outputting the data to the csv
-		void addPacketDataCSV(long interPacketOffset_s, long interPacketOffset_us, long aggTapArrivalDelta_s, long aggTapArrivalDelta_us, int headerSize) {
+		void addPacketDataCSV(long interPacketOffset_s, long interPacketOffset_us, long aggTapArrivalDelta_s, long aggTapArrivalDelta_us) {
 			csv << packetCount << ", " << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
 			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << ", 0x" << std::hex << errorCode << std::dec <<  ", ";
 		}
 
 		// extract and print the packet metadata
-		//@author Cillian Fogarty
+		// @author Cillian Fogarty
 		void extractPayloadArista7280(int headerSize) {
 			// extract the length of the ip_data from the file
 			int ethernet_header_length = headerStructure::ETHER_SIZE + headerSize; //constant length in bytes
@@ -265,14 +266,14 @@ class PCAP_Reader {
 			// extract the length of the metadata from the file
 			int length_udp_info = (length_udp_source * 4); //num of bytes taken up to represent the length of UDP, the sources and checksum
 			const u_char *metadata_header = packet + ethernet_header_length + ip_header_length + length_udp_info;
-			int metadata_length = udp_header_length - length_udp_info;
+			int udp_payload_length = udp_header_length - length_udp_info;
 
 			// extract the metadata from the file and output it
-			if (metadata_length > 0) {
+			if (udp_payload_length > 0) {
 		        const u_char *temp_pointer = metadata_header;
 		        int byte_count = 0;
 		        char payload[4];
-		        while (byte_count++ < metadata_length) {
+		        while (byte_count++ < udp_payload_length) {
 					sprintf(payload, "%02X ", *temp_pointer);
 					csv << payload;
 		            temp_pointer++;
@@ -282,8 +283,28 @@ class PCAP_Reader {
 			csv << "\n";
 		}
 
+		//@author Darren Aragones
 		void extractPayloadArista7130(int headerSize) {
+			int udp_header_length = headerStructure::ETHER_SIZE + headerSize + headerStructure::arista7130::SIZE_OF_DEST_ADDR;
+			const u_char *udp_header = packet + udp_header_length + (headerStructure::arista7130::SIZE_OF_UDP_PORT*2) + 1;
+			u_short total_udp_length = ((*udp_header));
+
+			int udp_payload_length = total_udp_length - headerStructure::UDP_SIZE;
+			const u_char *udp_payload = packet + udp_header_length + headerStructure::UDP_SIZE + 1;
 			
+			// extract the metadata from the file and output it
+			if (udp_payload_length > 0) {
+		        const u_char *temp_pointer = udp_payload;
+		        int byte_count = 0;
+		        char payload[4];
+		        while (byte_count++ < udp_payload_length) {
+					sprintf(payload, "%02X ", *temp_pointer);
+					csv << payload;
+		            temp_pointer++;
+		        }
+		    }
+
+			csv << "\n";
 		}
 
 		// output the first row as to display the what is in each column
@@ -344,7 +365,7 @@ class PCAP_Reader {
 						headerSize = headerStructure::arista7280::SIZE_WO_TIMESTAMP;
 						headerSize += extractTimeArista7280Format();
 						// run analysis on the timestamps to flag errors
-						timestampAnalysis(headerSize);
+						timestampAnalysis();
 						extractPayloadArista7280(headerSize);
 						break;
 
@@ -352,15 +373,15 @@ class PCAP_Reader {
 						//printf("Data Format: Example Vendor\n");
 						headerSize = headerStructure::exampleVendor::SIZE_WO_TIMESTAMP;
 						headerSize += extractTimeExampleFormat();
-						timestampAnalysis(headerSize);
+						timestampAnalysis();
 						extractPayloadArista7280(headerSize);
 						break;
 
 					case headerStructure::arista7130_code:
-						headerSize = 0;
+						headerSize = headerStructure::arista7130::SIZE_WO_TIMESTAMP;
 						headerSize += extractTimeArista7130Format();
-						timestampAnalysis(headerSize);
-
+						timestampAnalysis();
+						extractPayloadArista7130(headerSize);
 						// TO-DO: does not work with current get packet and print payload function!!!!
 						break;
 
@@ -375,6 +396,7 @@ class PCAP_Reader {
 			csv.close();
 		}
 		
+		//@author Darren Aragones
 		void setAdjustSec(std::string adj) {
 			sec_adjust += std::stoi(adj);
 		}
