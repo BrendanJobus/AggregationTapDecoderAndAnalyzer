@@ -1,25 +1,11 @@
 #pragma once
 
-#include <iostream>
-#include <vector>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#include <net/if.h>
-#include <netinet/tcp.h>
-#include <netinet/udp.h>
-#include <arpa/inet.h>
-
-
-// These are the headers we are definitely using right now
+// These are the headers we are definitley using right now
 #include <pcap.h>
 #include <dirent.h>
 #include <unordered_map>
 #include <chrono>
+#include <iostream>
 
 //for file shenanigans
 #include <string>
@@ -31,7 +17,8 @@
 
 namespace headerStructure {
 	enum format_code {
-		arista_code = 0xd28b,
+		arista7280_code = 0xd28b,
+		arista7130_code = 0x0800, // actually the IPv4 code
 		example_code = 0x9999,
 	};
 
@@ -48,16 +35,19 @@ namespace headerStructure {
 	constexpr int IP_SIZE{20};
 	constexpr int UDP_SIZE{8};
 
-	// information related to arista timestamp header format
-	namespace arista {
+	// information related to arista7280 timestamp header format
+	namespace arista7280 {
 		// Size of the packet and other position information
-		constexpr int TOTAL_SIZE{14};
+		constexpr int SIZE_WO_TIMESTAMP{10};
 		constexpr int TYPES_POS{ETHER_SIZE};
 		constexpr int TYPES_SIZE{4};
 		constexpr int TIMES_POS{TYPES_POS + TYPES_SIZE};
 		// Codes to identify timestamp formats
 		constexpr u_short taiCode{0x10};
 		constexpr u_short sixtyFourBitCode{0x1};
+		constexpr int SIZE_OF_SECONDS{4};
+		constexpr int SIZE_OF_NANOSECONDS_64{4};
+		constexpr int SIZE_OF_NANOSECONDS_48{3};
 
 		// Version is the TAI or UTC
 		// TAI is 0010 and UTC is 0110
@@ -79,21 +69,39 @@ namespace headerStructure {
 		};
 	}
 
+	namespace arista7130 {
+		constexpr int SIZE_OF_FCS{4};
+		constexpr int HEADER_SIZE{16};
+		constexpr int SIZE_WO_FCS{HEADER_SIZE - SIZE_OF_FCS};
+		constexpr int SIZE_WO_TIMESTAMP{8};
+		constexpr int SIZE_OF_SECONDS{4};
+		constexpr int SIZE_OF_NANOSECONDS{4};
+
+		struct sniff_times_64 {
+			u_int seconds;
+			u_int nanoseconds;
+		};
+	}
+
+
 	// This is an example alternate format that will have a code that represents it
 	// and an extract function in the PCAP_READER, this function will be called if the switch in
 	// workOnPCAPs finds a packet with a this formats code, we will create pointers that will point to the data
 	// at the top of PCAP_READER
 	//
-	// for this example, I will assume that the only differences between the arista format
+	// for this example, I will assume that the only differences between the arista7280 format
 	// and this format is that this one has its metadata header after the ip header and that the seconds
 	// will come after the nanoseconds ontop of a varying identifying code
 	namespace exampleVendor {
-		constexpr int TOTAL_SIZE{14};
+		constexpr int SIZE_WO_TIMESTAMP{10};
 		constexpr int TYPES_POS{ETHER_SIZE + VIRTUAL_LAN_SIZE + IP_SIZE};
 		constexpr int TYPES_SIZE{4};
 		constexpr int TIMES_POS{TYPES_POS + TYPES_SIZE};
 		constexpr u_short taiCode{0x10};
 		constexpr u_short sixtyFourBitCode{0x1};
+		constexpr int SIZE_OF_SECONDS{4};
+		constexpr int SIZE_OF_NANOSECONDS_64{4};
+		constexpr int SIZE_OF_NANOSECONDS_48{3};
 
 		struct sniff_types {
 			u_short subType;
@@ -115,18 +123,15 @@ namespace headerStructure {
 class PCAP_READER {
 	private:
 		const headerStructure::sniff_ethernet *ethernet;
-		const headerStructure::arista::sniff_types *aristaTypes;
-		const headerStructure::arista::sniff_times_64 *aristaTime64;
-		const headerStructure::arista::sniff_times_48 *aristaTime48;
+		const headerStructure::arista7280::sniff_types *arista7280_types;
+		const headerStructure::arista7280::sniff_times_64 *arista7280_time64;
+		const headerStructure::arista7280::sniff_times_48 *arista7280_time48;
 		const headerStructure::exampleVendor::sniff_types *exTypes;
 		const headerStructure::exampleVendor::sniff_times_64 *exTime64;
 		const headerStructure::exampleVendor::sniff_times_48 *exTime48;
+		const headerStructure::arista7130::sniff_times_64 *arista7130_time64;
 
 		int packetCount;
-
-		int sec_adjust;
-		double nanosec_adjust;
-
 		u_short data_format;
 		u_short timestampLength;
 		u_short timeFormat;
@@ -140,6 +145,7 @@ class PCAP_READER {
 
 		// holds the size of the current packets propreitary header
 		int vendorSize;
+		int payloadSize;
 
 		// This is the pcap times
 		u_int packetSeconds;
@@ -162,18 +168,29 @@ class PCAP_READER {
 		int getTaiToUtcOffset();
 		u_int taiToUtc(u_int);
 
-		void extractTimeAristaFormat();
+		void extractTimeArista7280Format();
+		void extractTimeArista7130Format();
 		void extractTimeExampleFormat();
 
 		void timestampAnalysis();
+		void extractPayloadArista();
 
 		void initializeCSV();
-		void addToCSV(u_int, u_int, u_int, u_int);
+		void addPacketDataCSV(long, long, long, long);
 
 	public:
 		PCAP_READER();
-
 		void workOnPCAPs(pcap_t *);
-
+		void setOutputFile(std::string);
 		void destroy();
 };
+
+const std::string helpString = "Agg tap decoder and analyzer using libpcap designed "
+							   "for Pico Quantitative Trading LLC.\n\nBasic operation: "
+							   "takes in pcap files that contain agg tap timestamps, "
+							   "decodes and analyzes their agg tap content\n\nCommands:\n"
+							   "    --help / -h: print help\n    -s / -ns: adjusts the agg "
+							   "tap timestamp by x seconds or x nanoseconds\n    -ps / -pns: "
+							   "adjusts the pcap timestamp by x seconds or x nanoseconds\n"
+							   "\nDesigned By:\n  Alannah Henry    Brendan Jobus\n  Cillian Fogarty  "
+							   "Darren Aragones\n  Finn Jaksland    Owen Gallagher\n";
