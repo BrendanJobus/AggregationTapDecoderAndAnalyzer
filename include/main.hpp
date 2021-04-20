@@ -171,10 +171,11 @@ class PCAP_READER {
 		void extractTimeExampleFormat();
 
 		void timestampAnalysis();
-		void getPacketAndPrintPayload();
+		void extractPayloadArista7280();
+		void extractPayloadArista7130();
 
 		void initializeCSV();
-		void addToCSV(long, long, long, long);
+		void addPacketDataCSV(long, long, long, long);
 
 	public:
 		PCAP_READER();

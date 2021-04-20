@@ -77,6 +77,7 @@ class PCAP_Reader {
 		}
 
 ///////////// These functions extract the agg tap times from the packets, each one will work for its corresponding packet format /////////////
+
 		// returns the size of the timestamp in bytes
 		int extractTimeArista7280Format() {
 			// putting data into the arista7280_types variable
@@ -238,20 +239,18 @@ class PCAP_Reader {
 				aggTapArrivalDelta_us = packetNanoseconds - nanoseconds;
 			}
 
-			addToCSV(secondDelta, nanosecondDelta, aggTapArrivalDelta_s, aggTapArrivalDelta_us, headerSize);
+			addPacketDataCSV(secondDelta, nanosecondDelta, aggTapArrivalDelta_s, aggTapArrivalDelta_us, headerSize);
 		}
 
-		// outputing the data to the csv
-		void addToCSV(long interPacketOffset_s, long interPacketOffset_us, long aggTapArrivalDelta_s, long aggTapArrivalDelta_us, int headerSize) {
+		// outputting the data to the csv
+		void addPacketDataCSV(long interPacketOffset_s, long interPacketOffset_us, long aggTapArrivalDelta_s, long aggTapArrivalDelta_us, int headerSize) {
 			csv << packetCount << ", " << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
 			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << ", 0x" << std::hex << errorCode << std::dec <<  ", ";
-
-			// csv << "\n";
 		}
 
 		// extract and print the packet metadata
 		//@author Cillian Fogarty
-		void getPacketAndPrintPayload(int headerSize) {
+		void extractPayloadArista7280(int headerSize) {
 			// extract the length of the ip_data from the file
 			int ethernet_header_length = headerStructure::ETHER_SIZE + headerSize; //constant length in bytes
 			const u_char *ip_header = packet + ethernet_header_length;
@@ -283,6 +282,10 @@ class PCAP_Reader {
 			csv << "\n";
 		}
 
+		void extractPayloadArista7130(int headerSize) {
+			
+		}
+
 		// output the first row as to display the what is in each column
 		void initializeCSV() {
 			csv << "Packet #, Packet Timestamp, Raw Timestamp Metadata, Converted Timestamp Metadata, ";
@@ -305,8 +308,7 @@ class PCAP_Reader {
 
 	public:
 		PCAP_Reader(): packetCount{0}, dataFormat{0}, preSeconds{0}, preNanoseconds{0}, sec_adjust{0}, nanosec_adjust{0}, packet_sec_adjust{0}, packet_nanosec_adjust{0}, TAI_UTC_OFFSET{getTaiToUtcOffset()}, errorCode{0}
-		{
-		}
+		{ }
 	
 		// takes in a pcap file, outputs certain data about the pcap itself, then figures out what format the packet is in, and sends it to the corresponding function
 		void workOnPCAPs(std::string filename) {
@@ -343,7 +345,7 @@ class PCAP_Reader {
 						headerSize += extractTimeArista7280Format();
 						// run analysis on the timestamps to flag errors
 						timestampAnalysis(headerSize);
-						getPacketAndPrintPayload(headerSize);
+						extractPayloadArista7280(headerSize);
 						break;
 
 					case headerStructure::example_code:
@@ -351,19 +353,18 @@ class PCAP_Reader {
 						headerSize = headerStructure::exampleVendor::SIZE_WO_TIMESTAMP;
 						headerSize += extractTimeExampleFormat();
 						timestampAnalysis(headerSize);
-						getPacketAndPrintPayload(headerSize);
+						extractPayloadArista7280(headerSize);
 						break;
 
 					case headerStructure::arista7130_code:
-						std::cout << "detected metamako code & at packet " << packetCount << '\n';
 						headerSize = 0;
 						headerSize += extractTimeArista7130Format();
 						timestampAnalysis(headerSize);
+
 						// TO-DO: does not work with current get packet and print payload function!!!!
 						break;
 
 					default:
-						// either output an unkown format error, or just ignore, maybe do a warning instead of an error
 						break;
 				}
 
