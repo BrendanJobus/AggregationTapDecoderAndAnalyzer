@@ -4,26 +4,24 @@
 class PCAP_Reader {
 	private:
 		enum error_codes {
-			
 			// the agg tap timestamp is ahead of the packets timestamp
 			packet_before_aggTap = 0xB,
-
 			// the current packet's agg tap timestamp is behind the previous packet's agg tap timestamp
 			aggTap_behind_previous = 0xA0,
 		};
 
 		// each struct corresponds to a number of bits in the packets memory, to find out what each means, look at the structs
 		const headerStructure::sniff_ethernet *ethernet;
-		// For packets of arista format
-		const headerStructure::arista::sniff_types *aristaTypes;
-		const headerStructure::arista::sniff_times_64 *aristaTime64;
-		const headerStructure::arista::sniff_times_48 *aristaTime48;
+		// For packets of arista7280 7280/7500 format
+		const headerStructure::arista7280::sniff_types *arista7280_types;
+		const headerStructure::arista7280::sniff_times_64 *arista7280_time64;
+		const headerStructure::arista7280::sniff_times_48 *arista7280_time48;
 		// For packet of example format
 		const headerStructure::exampleVendor::sniff_types *exTypes;
 		const headerStructure::exampleVendor::sniff_times_64 *exTime64;
 		const headerStructure::exampleVendor::sniff_times_48 *exTime48;
-
-		const headerStructure::arista7130::sniff_times_64 *arista7130Time64;
+		// For packet of example format
+		const headerStructure::arista7130::sniff_times_64 *arista7130_time64;
 
 		int packetCount;
 
@@ -80,40 +78,40 @@ class PCAP_Reader {
 
 ///////////// These functions extract the agg tap times from the packets, each one will work for its corresponding packet format /////////////
 		// returns the size of the timestamp in bytes
-		int extractTimeAristaFormat() {
-			// putting data into the aristaTypes variable
-			aristaTypes = (headerStructure::arista::sniff_types*)(packet + headerStructure::arista::TYPES_POS);
+		int extractTimeArista7280Format() {
+			// putting data into the arista7280_types variable
+			arista7280_types = (headerStructure::arista7280::sniff_types*)(packet + headerStructure::arista7280::TYPES_POS);
 
-			timestampLength = ntohs(aristaTypes->subType);
-			timeFormat  = ntohs(aristaTypes->version);
+			timestampLength = ntohs(arista7280_types->subType);
+			timeFormat  = ntohs(arista7280_types->version);
 
-			if (timestampLength == headerStructure::arista::sixtyFourBitCode) {
-				aristaTime64 = (headerStructure::arista::sniff_times_64*)(packet + headerStructure::arista::TIMES_POS);
+			if (timestampLength == headerStructure::arista7280::sixtyFourBitCode) {
+				arista7280_time64 = (headerStructure::arista7280::sniff_times_64*)(packet + headerStructure::arista7280::TIMES_POS);
 
-				rawSeconds = aristaTime64->seconds;
-				rawNanoseconds = aristaTime64->nanoseconds;	
+				rawSeconds = arista7280_time64->seconds;
+				rawNanoseconds = arista7280_time64->nanoseconds;	
 
-				seconds = ntohl(aristaTime64->seconds);
-				nanoseconds = ntohl(aristaTime64->nanoseconds);
+				seconds = ntohl(arista7280_time64->seconds);
+				nanoseconds = ntohl(arista7280_time64->nanoseconds);
 
-				if(timeFormat == headerStructure::arista::taiCode) {
+				if(timeFormat == headerStructure::arista7280::taiCode) {
 					seconds = taiToUtc(seconds);
 				}
-				return headerStructure::arista::SIZE_OF_SECONDS + headerStructure::arista::SIZE_OF_NANOSECONDS_64;
+				return headerStructure::arista7280::SIZE_OF_SECONDS + headerStructure::arista7280::SIZE_OF_NANOSECONDS_64;
 			} 
 			else {
-				aristaTime48 = (headerStructure::arista::sniff_times_48*)(packet + headerStructure::arista::TIMES_POS);
+				arista7280_time48 = (headerStructure::arista7280::sniff_times_48*)(packet + headerStructure::arista7280::TIMES_POS);
 
-				rawSeconds = aristaTime48->seconds;
-				rawNanoseconds = aristaTime48->nanoseconds;
+				rawSeconds = arista7280_time48->seconds;
+				rawNanoseconds = arista7280_time48->nanoseconds;
 
-				seconds = ntohl(aristaTime48->seconds);
-				nanoseconds = ntohl(aristaTime48->nanoseconds);
+				seconds = ntohl(arista7280_time48->seconds);
+				nanoseconds = ntohl(arista7280_time48->nanoseconds);
 
-				if(timeFormat == headerStructure::arista::taiCode) {
+				if(timeFormat == headerStructure::arista7280::taiCode) {
 					seconds = taiToUtc(seconds);
 				}
-				return headerStructure::arista::SIZE_OF_SECONDS + headerStructure::arista::SIZE_OF_NANOSECONDS_48;
+				return headerStructure::arista7280::SIZE_OF_SECONDS + headerStructure::arista7280::SIZE_OF_NANOSECONDS_48;
 			}
 		}
 
@@ -155,13 +153,14 @@ class PCAP_Reader {
 		}
 
 		int extractTimeArista7130Format() {
-			arista7130Time64 = (headerStructure::arista7130::sniff_times_64*)(packet + headerStructure::arista7130::TIMES_POS);
+			arista7130_time64 = (headerStructure::arista7130::sniff_times_64*)(packet + headerStructure::arista7130::TIMES_POS);
 
-			rawSeconds = arista7130Time64->seconds;
-			rawNanoseconds = arista7130Time64->nanoseconds;	
+			// Timestamp is always UTC in metamako/7130 format
+			rawSeconds = arista7130_time64->seconds;
+			rawNanoseconds = arista7130_time64->nanoseconds;	
 
-			seconds = ntohl(arista7130Time64->seconds);
-			nanoseconds = ntohl(arista7130Time64->nanoseconds);
+			seconds = ntohl(arista7130_time64->seconds);
+			nanoseconds = ntohl(arista7130_time64->nanoseconds);
 
 			return headerStructure::arista7130::SIZE_OF_SECONDS + headerStructure::arista7130::SIZE_OF_NANOSECONDS;
 		}
@@ -172,6 +171,10 @@ class PCAP_Reader {
 		// timestamp analysis
 		//@author Cillian Fogarty
 		void timestampAnalysis(int headerSize) {
+
+			seconds += sec_adjust;
+			nanoseconds += nanosec_adjust;
+
 			errorCode = 0;
 
 			// get offset between current and previous packet
@@ -243,7 +246,7 @@ class PCAP_Reader {
 			csv << packetCount << ", " << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
 			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << ", 0x" << std::hex << errorCode << std::dec <<  ", ";
 
-			csv << "\n";
+			// csv << "\n";
 		}
 
 		// extract and print the packet metadata
@@ -332,15 +335,12 @@ class PCAP_Reader {
 				ethernet = (headerStructure::sniff_ethernet*)(packet);
 				dataFormat = ntohs(ethernet->ether_type);
 
-				// switching depending on the type of packet we have received (e.g. arista format)
+				// switching depending on the type of packet we have received (e.g. arista7280 format)
 				switch(dataFormat) {
-					case headerStructure::arista_code:
-						//printf("Data Fromat: Arista Vendor Specific Protocol\n");
-						std::cout << "detected 7280 code" << '\n';
-						headerSize = headerStructure::arista::SIZE_WO_TIMESTAMP;
-						headerSize += extractTimeAristaFormat();
-						seconds += sec_adjust;
-						nanoseconds += nanosec_adjust;
+					case headerStructure::arista7280_code:
+						//printf("Data Format: arista7280 Vendor Specific Protocol\n");
+						headerSize = headerStructure::arista7280::SIZE_WO_TIMESTAMP;
+						headerSize += extractTimeArista7280Format();
 						// run analysis on the timestamps to flag errors
 						timestampAnalysis(headerSize);
 						getPacketAndPrintPayload(headerSize);
@@ -348,7 +348,6 @@ class PCAP_Reader {
 
 					case headerStructure::example_code:
 						//printf("Data Format: Example Vendor\n");
-						std::cout << "detected code" << '\n';
 						headerSize = headerStructure::exampleVendor::SIZE_WO_TIMESTAMP;
 						headerSize += extractTimeExampleFormat();
 						timestampAnalysis(headerSize);
@@ -360,7 +359,7 @@ class PCAP_Reader {
 						headerSize = 0;
 						headerSize += extractTimeArista7130Format();
 						timestampAnalysis(headerSize);
-						// does not work with current get packet and print payload function!!!!
+						// TO-DO: does not work with current get packet and print payload function!!!!
 						break;
 
 					default:
