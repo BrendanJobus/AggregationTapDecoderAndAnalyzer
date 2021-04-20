@@ -251,7 +251,7 @@ class PCAP_Reader {
 
 		// extract and print the packet metadata
 		// @author Cillian Fogarty
-		void extractPayloadArista(int headerSize) {
+		void extractPacketPayload(int headerSize) {
 			// extract the length of the ip_data from the file
 			int ethernet_header_length = headerStructure::ETHER_SIZE + headerSize; //constant length in bytes
 			const u_char *ip_header = packet + ethernet_header_length;
@@ -342,7 +342,7 @@ class PCAP_Reader {
 						headerSize += extractTimeArista7280Format();
 						// run analysis on the timestamps to flag errors
 						timestampAnalysis();
-						extractPayloadArista(headerSize);
+						extractPacketPayload(headerSize);
 						break;
 
 					case headerStructure::example_code:
@@ -350,7 +350,7 @@ class PCAP_Reader {
 						headerSize = headerStructure::exampleVendor::SIZE_WO_TIMESTAMP;
 						headerSize += extractTimeExampleFormat();
 						timestampAnalysis();
-						extractPayloadArista(headerSize);
+						extractPacketPayload(headerSize);
 						break;
 
 					case headerStructure::arista7130_code:
@@ -358,7 +358,7 @@ class PCAP_Reader {
 						extractTimeArista7130Format(header->len);
 						timestampAnalysis();
 						// Arista 7130 packets are injected into the end of the packet AFTER the payload
-						extractPayloadArista(0); 
+						extractPacketPayload(0); 
 						break;
 
 					default:
