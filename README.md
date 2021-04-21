@@ -37,9 +37,9 @@ Decoder of Aggregation Taps from header and analysis of data from the Aggregatio
 ## Getting Started
 
 ### Using the binary
-* Use the included ```analyzer``` binary included in the ```bin``` folder for v1.0 of the programme. This can be run from the base directory with
+* Use the included ```Analyzer``` binary included in the ```bin``` folder for v1.0 of the programme. This can be run from the base directory with
 	```sh
-	./bin/analyzer
+	./bin/Analyzer
 	```
 
 ### Compiling and Running
@@ -61,6 +61,8 @@ Compiling and running code manually or automatically with the included makefile 
 	make
 	```
 	while in the base folder. This will compile the code into a binary called `test` in the bin folder.
+
+	_NOTE:_ The adjust functions do not work with the make file and to test them, you should run make and the manually run ```test``` instead of using make run.
 
 ##### Run
 * To automatically compile and run the code, use
