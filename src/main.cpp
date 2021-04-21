@@ -74,6 +74,8 @@ class PCAP_Reader {
 		}
 
 ///////////// These functions extract the agg tap times from the packets, each one will work for its corresponding packet format /////////////
+///////////// They return the size of the header that the payload extraction function uses to get to the data, if the data is    /////////////
+///////////// found after the payload, return 0, as the extraction function doesn't have to deal with the header				 /////////////
 
 		// returns the size of the timestamp in bytes
 		int extractTimeArista7280Format() {
