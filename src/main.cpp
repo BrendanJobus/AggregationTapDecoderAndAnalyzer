@@ -163,6 +163,7 @@ class PCAP_Reader {
 			seconds = ntohl(arista7130_time64->seconds);
 			nanoseconds = ntohl(arista7130_time64->nanoseconds);
 
+			// returns 0 as the timestamp data is not infront of the payload, so it can be ignored for the purpose of extracting the payload
 			return 0;
 		}
 
