@@ -132,6 +132,7 @@ class PCAP_READER {
 		const headerStructure::arista7130::sniff_times_64 *arista7130_time64;
 
 		int packetCount;
+
 		u_short data_format;
 		u_short timestampLength;
 		u_short timeFormat;
@@ -145,7 +146,6 @@ class PCAP_READER {
 
 		// holds the size of the current packets propreitary header
 		int vendorSize;
-		int payloadSize;
 
 		// This is the pcap times
 		u_int packetSeconds;
@@ -163,26 +163,38 @@ class PCAP_READER {
 		u_long preSeconds;
 		u_long preNanoseconds;
 
+		int sec_adjust;
+		int nanosec_adjust;
+		int packet_sec_adjust;
+		int packet_nanosec_adjust;
+
 		const int TAI_UTC_OFFSET;
 
 		int getTaiToUtcOffset();
-		u_int taiToUtc(u_int);
+		u_int taiToUtc(u_long);
 
 		void extractTimeArista7280Format();
 		void extractTimeArista7130Format();
 		void extractTimeExampleFormat();
 
-		void timestampAnalysis();
-		void extractPayloadArista();
+		void timestampAnalysis(int);
+		void getAndPrintPayload(int);
 
 		void initializeCSV();
-		void addPacketDataCSV(long, long, long, long);
+		void addTimestampDataToCSV(long, long, long, long, int);
+
+		void setOutputFile(std::string);
 
 	public:
 		PCAP_READER();
-		void workOnPCAPs(pcap_t *);
-		void setOutputFile(std::string);
-		void destroy();
+
+		void workOnPCAPs(std::string);
+
+		void setAdjustSec(int);
+
+		void setAdjustNanosec(int);
+
+		void setAdjustPacketNanosec(int);
 };
 
 const std::string helpString = "Agg tap decoder and analyzer using libpcap designed "

@@ -39,7 +39,6 @@ class PCAP_Reader {
 
 		// Packet header and data sizes
 		int headerSize;
-		int payloadSize;
 
 		// forward declaration of variables that hold the different times
 		u_int packetSeconds;
@@ -164,7 +163,7 @@ class PCAP_Reader {
 			seconds = ntohl(arista7130_time64->seconds);
 			nanoseconds = ntohl(arista7130_time64->nanoseconds);
 
-			return headerStructure::arista7130::SIZE_OF_SECONDS + headerStructure::arista7130::SIZE_OF_NANOSECONDS;
+			return 0;
 		}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -172,7 +171,7 @@ class PCAP_Reader {
 		long errorCode;
 		// timestamp analysis
 		// @author Cillian Fogarty
-		void timestampAnalysis() {
+		void timestampAnalysis(int headerSize) {
 
 			seconds += sec_adjust;
 			nanoseconds += nanosec_adjust;
@@ -240,13 +239,7 @@ class PCAP_Reader {
 				aggTapArrivalDelta_us = packetNanoseconds - nanoseconds;
 			}
 
-			addPacketDataCSV(secondDelta, nanosecondDelta, aggTapArrivalDelta_s, aggTapArrivalDelta_us);
-		}
-
-		// outputting the data to the csv
-		void addPacketDataCSV(long interPacketOffset_s, long interPacketOffset_us, long aggTapArrivalDelta_s, long aggTapArrivalDelta_us) {
-			csv << packetCount << ", " << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
-			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << ", 0x" << std::hex << errorCode << std::dec <<  ", ";
+			addTimestampDataToCSV(secondDelta, nanosecondDelta, aggTapArrivalDelta_s, aggTapArrivalDelta_us, headerSize);
 		}
 
 		// extract and print the packet metadata
@@ -279,8 +272,6 @@ class PCAP_Reader {
 		            temp_pointer++;
 		        }
 		    }
-
-			csv << "\n";
 		}
 
 		// output the first row as to display the what is in each column
@@ -288,6 +279,16 @@ class PCAP_Reader {
 			csv << "Packet #, Packet Timestamp, Raw Timestamp Metadata, Converted Timestamp Metadata, ";
 			csv << "Previous Packet Offset, Agg Tap and Packet Delta, Error Code, ";
 			csv << "Payload\n";
+		}
+
+		// outputting the data to the csv
+		void addTimestampDataToCSV(long interPacketOffset_s, long interPacketOffset_us, long aggTapArrivalDelta_s, long aggTapArrivalDelta_us, int headerSize) {
+			csv << packetCount << ", " << packetSeconds << ":" << packetNanoseconds << ", " << std::hex << rawSeconds << ":" << rawNanoseconds << std::dec << ", " << seconds << ":" << nanoseconds <<  ", ";
+			csv << interPacketOffset_s << ":" << interPacketOffset_us << ", " << aggTapArrivalDelta_s << ":" << aggTapArrivalDelta_us << ", 0x" << std::hex << errorCode << std::dec <<  ", ";
+
+			extractPacketPayload(headerSize);
+
+			csv << "\n";
 		}
 
 		
@@ -337,33 +338,29 @@ class PCAP_Reader {
 				// switching depending on the type of packet we have received (e.g. arista7280 format)
 				switch(dataFormat) {
 					case headerStructure::arista7280_code:
-						//printf("Data Format: arista7280 Vendor Specific Protocol\n");
 						headerSize = headerStructure::arista7280::SIZE_WO_TIMESTAMP;
 						headerSize += extractTimeArista7280Format();
-						// run analysis on the timestamps to flag errors
-						timestampAnalysis();
-						extractPacketPayload(headerSize);
 						break;
 
 					case headerStructure::example_code:
-						//printf("Data Format: Example Vendor\n");
 						headerSize = headerStructure::exampleVendor::SIZE_WO_TIMESTAMP;
 						headerSize += extractTimeExampleFormat();
-						timestampAnalysis();
-						extractPacketPayload(headerSize);
 						break;
 
 					case headerStructure::arista7130_code:
-						//printf("Data Format: arista7130 Vendor Specific Protocol\n");
-						extractTimeArista7130Format(header->len);
-						timestampAnalysis();
-						// Arista 7130 packets are injected into the end of the packet AFTER the payload
-						extractPacketPayload(0); 
+						// This format takes in an argument as the timestamps are at the end, so we pass the size of
+						// the packet, and go from the back
+						headerSize = extractTimeArista7130Format(header->len);
 						break;
 
 					default:
 						break;
 				}
+
+				seconds += sec_adjust;
+				nanoseconds += nanosec_adjust;
+
+				timestampAnalysis(headerSize);
 
 				preSeconds = seconds;
 				preNanoseconds = nanoseconds;
@@ -373,20 +370,20 @@ class PCAP_Reader {
 		}
 		
 		//@author Darren Aragones
-		void setAdjustSec(std::string adj) {
-			sec_adjust += std::stoi(adj);
+		void setAdjustSec(int adj) {
+			sec_adjust += adj;
 		}
 
-		void setAdjustNanosec(std::string adj) {
-			nanosec_adjust += std::stoi(adj);
+		void setAdjustNanosec(int adj) {
+			nanosec_adjust += adj;
 		}
 
-		void setAdjustPacketSec(std::string adj) {
-			packet_sec_adjust += std::stoi(adj);
+		void setAdjustPacketSec(int adj) {
+			packet_sec_adjust += adj;
 		}
 
-		void setAdjustPacketNanosec(std::string adj) {
-			packet_nanosec_adjust += std::stoi(adj);
+		void setAdjustPacketNanosec(int adj) {
+			packet_nanosec_adjust += adj;
 		}
 };
 
@@ -403,16 +400,16 @@ int main(int argc, char **argv) {
 				// if the first character of the string is a "-"" assume that it is an argument, else, assume it is a file
 				if ( argv[i][0] == '-') {
 					if ( (std::string)argv[i] == "-s") {
-						r.setAdjustSec(argv[++i]);
+						r.setAdjustSec(std::stoi(argv[++i]));
 					}
 					else if ( (std::string)argv[i] == "-ns") {
-						r.setAdjustNanosec(argv[++i]);
+						r.setAdjustNanosec(std::stoi(argv[++i]));
 					}
 					else if ( (std::string)argv[i] == "-ps") {
-						r.setAdjustPacketSec(argv[++i]);
+						r.setAdjustPacketSec(std::stoi(argv[++i]));
 					}
 					else if ( (std::string) argv[i] == "-pns") {
-						r.setAdjustPacketNanosec(argv[++i]);
+						r.setAdjustPacketNanosec(std::stoi(argv[++i]));
 					}
 					else {
 						printf("Invalid input\nFor help, use argument -h or --help\n");
