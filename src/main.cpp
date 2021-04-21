@@ -60,7 +60,6 @@ class PCAP_Reader {
 		const int TAI_UTC_OFFSET = getTaiToUtcOffset();
 
 		//Get offset between TAI and UTC
-		//@author Cillian Fogarty
 		int getTaiToUtcOffset() {
 			//Get current TAI Time
 			u_long timeTAI = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count() + 37;
@@ -70,7 +69,6 @@ class PCAP_Reader {
 		}
 
 		//Convert TAI to UTC
-		//@author Cillian Fogarty
 		u_long taiToUtc(u_long taiTime) {
 			return taiTime + TAI_UTC_OFFSET;
 		}
@@ -152,7 +150,6 @@ class PCAP_Reader {
 			}
 		}
 
-		//@author Darren Aragones
 		int extractTimeArista7130Format(u_int packet_len) {
 			arista7130_time64 = (headerStructure::arista7130::sniff_times_64*)(packet + packet_len - headerStructure::arista7130::SIZE_WO_FCS);
 
@@ -171,7 +168,6 @@ class PCAP_Reader {
 
 		long errorCode;
 		// timestamp analysis
-		// @author Cillian Fogarty
 		void timestampAnalysis(int headerSize) {
 
 			seconds += sec_adjust;
@@ -244,7 +240,6 @@ class PCAP_Reader {
 		}
 
 		// extract and print the packet metadata
-		// @author Cillian Fogarty
 		void extractPacketPayload(int headerSize) {
 			// extract the length of the ip_data from the file
 			int ethernet_header_length = headerStructure::ETHER_SIZE + headerSize; //constant length in bytes
@@ -370,7 +365,6 @@ class PCAP_Reader {
 			csv.close();
 		}
 		
-		//@author Darren Aragones
 		void setAdjustSec(int adj) {
 			sec_adjust += adj;
 		}
